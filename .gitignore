@@ -32,7 +32,12 @@ allure-report/
 !.env.example
 
 # Project-specific
-.claude
+# Pixel Agent Workspace shares its project rules, plugin config and launch config;
+# everything else under .claude/ stays local.
+.claude/*
+!.claude/CLAUDE.md
+!.claude/settings.json
+!.claude/launch.json
 .mcp.json
 /sprites-export
 .vercel/
