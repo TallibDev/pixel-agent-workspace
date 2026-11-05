@@ -1,3 +1,11 @@
+# Pixel Agent Workspace
+
+A cozy pixel-art workspace for observing and interacting with AI coding agents in real time. Track agent activity, tasks, and collaboration across supported AI environments.
+
+> Built on [Pixel Agents](https://github.com/pixel-agents-hq/pixel-agents) (MIT). The documentation below is upstream's and describes the base it builds on; see [docs/PLAN.md](docs/PLAN.md) for this project's plan and [NOTICE.md](NOTICE.md) for authorship.
+
+---
+
 <h1 align="center">
   <a href="https://github.com/pixel-agents-hq/pixel-agents/discussions">
     <img src="webview-ui/public/banner.png" alt="Pixel Agents">
