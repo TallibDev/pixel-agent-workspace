@@ -22,6 +22,7 @@ import { collectDirectorySuggestions } from './directorySuggestions.js';
 import { hostDirectory } from './hostDirectory.js';
 import { readLayoutFromFile, writeLayoutToFile } from './layoutPersistence.js';
 import { resendObservation } from './observation/observationTracker.js';
+import { handleObservationMessage } from './observation/service.js';
 import type { ConsentEffects } from './providers/hook/consentExecutor.js';
 import { applyConsentChoice } from './providers/hook/consentExecutor.js';
 import { hooksConsentRequest } from './providers/hook/consentGate.js';
@@ -133,6 +134,9 @@ export function handleClientMessage(
     refuseReadOnly(msg, send, ctx);
     return;
   }
+
+  // Pixel Agent Workspace: history reads (privileged, read-only on agents).
+  if (handleObservationMessage(msg, send, store)) return;
 
   switch (msg.type) {
     case 'webviewReady':

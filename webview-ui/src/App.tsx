@@ -27,6 +27,7 @@ import { useIntroTour } from './hooks/useIntroTour.js';
 import { useIsMobile } from './hooks/useIsMobile.js';
 import { useKeyboardViewport } from './hooks/useKeyboardViewport.js';
 import { useTerminalDrawer } from './hooks/useTerminalDrawer.js';
+import { useT } from './i18n/index.js';
 import { MobileShell } from './mobile/MobileShell.js';
 import { useMobileShell } from './mobile/useMobileShell.js';
 import { ObservationHud } from './observation/ObservationHud.js';
@@ -152,6 +153,7 @@ function App() {
     () => getOfficeState().selectedAgentId,
   );
 
+  const t = useT();
   const closeAgentCard = useCallback(() => {
     getOfficeState().selectedAgentId = null;
   }, []);
@@ -239,6 +241,19 @@ function App() {
   // The Settings surface renders one provider today; its checkbox binds to
   // the Claude row of the per-provider install-state map.
   const claudeHooksInstalled = hooksInstalled['claude'] === true;
+  // Pixel Agent Workspace hooks wizard: the actual install state (undefined until
+  // the server reports the claude row) and the same setHooksEnabled the Settings
+  // toggle sends. The click in the wizard, after its disclosure, is the consent.
+  const hooksControl = useMemo(
+    () => ({
+      installed: 'claude' in hooksInstalled ? hooksInstalled['claude'] === true : undefined,
+      onInstall: () => {
+        if (!('claude' in hooksInstalled)) return;
+        transport.send({ type: 'setHooksEnabled', providerId: 'claude', enabled: true });
+      },
+    }),
+    [hooksInstalled],
+  );
 
   // Mutate Directory→Area mappings locally + send to server. Updates OfficeState in
   // the same tick so a follow-up agentCreated picks up the new mapping.
@@ -505,7 +520,12 @@ function App() {
 
           {/* Pixel Agent Workspace: observation summary, agent card, activity feed */}
           {!editor.isEditMode && (
-            <ObservationHud selectedAgentId={focusedAgentId} onCloseCard={closeAgentCard} />
+            <ObservationHud
+              selectedAgentId={focusedAgentId}
+              onCloseCard={closeAgentCard}
+              readOnly={officeReadOnly}
+              hooks={hooksControl}
+            />
           )}
 
           {/* Vignette overlay */}
@@ -634,7 +654,7 @@ function App() {
 
       {officeReadOnly && (
         <div className="absolute mobile-safe-top left-1/2 -translate-x-1/2 z-10 text-sm text-text-muted pointer-events-none select-none whitespace-nowrap">
-          View only
+          {t('chrome.viewOnly')}
         </div>
       )}
 
@@ -778,31 +798,26 @@ function App() {
       <Modal
         isOpen={isHooksInfoOpen}
         onClose={() => setIsHooksInfoOpen(false)}
-        title="Instant Detection is ON"
+        title={t('hooksInfo.title')}
         zIndex={52}
       >
         <div className="text-base text-text px-10" style={{ lineHeight: 1.4 }}>
-          <p className="mb-8">Your Pixel Agents office now reacts in real-time:</p>
+          <p className="mb-8">{t('hooksInfo.intro')}</p>
           <ul className="mb-8 pl-18 list-disc m-0">
-            <li className="text-sm mb-2">Permission prompts appear instantly</li>
-            <li className="text-sm mb-2">Turn completions detected the moment they happen</li>
-            <li className="text-sm mb-2">Sound notifications play immediately</li>
+            <li className="text-sm mb-2">{t('hooksInfo.permission')}</li>
+            <li className="text-sm mb-2">{t('hooksInfo.turns')}</li>
+            <li className="text-sm mb-2">{t('hooksInfo.sound')}</li>
           </ul>
-          <p className="mb-12 text-text-muted">
-            This works through Claude Code Hooks, small event listeners that notify Pixel Agents
-            whenever something happens in your Claude sessions.
-          </p>
+          <p className="mb-12 text-text-muted">{t('hooksInfo.how')}</p>
           <div className="text-center">
             <button
               onClick={() => setIsHooksInfoOpen(false)}
               className="py-4 px-20 text-lg bg-accent text-white border-2 border-accent rounded-none cursor-pointer shadow-pixel"
             >
-              Got it
+              {t('hooksInfo.ok')}
             </button>
           </div>
-          <p className="mt-8 text-xs text-text-muted text-center">
-            To disable, go to Settings {'>'} Instant Detection
-          </p>
+          <p className="mt-8 text-xs text-text-muted text-center">{t('hooksInfo.disable')}</p>
         </div>
       </Modal>
       {/* Rendered at the composition root, not inside a launch surface: the

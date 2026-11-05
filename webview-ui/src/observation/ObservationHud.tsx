@@ -2,8 +2,27 @@ import './observation.css';
 
 import { useEffect, useMemo, useState } from 'react';
 
-import type { AgentObservation, ObservedStatus } from '../../../core/src/messages.js';
-import { agentLabel, countStatuses, STATUS_LABEL } from './observationStore.js';
+import type {
+  ActivityEntry,
+  AgentObservation,
+  HistoryEntry,
+  HistorySession,
+  ObservedStatus,
+} from '../../../core/src/messages.js';
+import {
+  type Language,
+  LANGUAGES,
+  pluralForm,
+  setLanguage,
+  type Translate,
+  translateAction,
+  useLanguage,
+  useT,
+} from '../i18n/index.js';
+import { entryText } from './entryText.js';
+import { agentLabel, countStatuses } from './observationStore.js';
+import { delayToNext, REPLAY_SPEEDS, statusAt } from './replay.js';
+import { type SessionRecording, useHistory } from './useHistory.js';
 import { useObservation } from './useObservation.js';
 
 const STATUS_COLOR: Record<ObservedStatus, string> = {
@@ -14,89 +33,168 @@ const STATUS_COLOR: Record<ObservedStatus, string> = {
   unknown: 'var(--obs-unknown)',
 };
 
-const ACTIVITY_LABEL: Record<string, string> = {
-  reading: 'Reading',
-  searching: 'Searching',
-  writing: 'Writing code',
-  running: 'Running a command',
-  browsing: 'Browsing the web',
-  delegating: 'Delegating',
-  planning: 'Planning',
-  asking: 'Asking you',
-  other: 'Using a tool',
-};
-
 const SOURCE_LABEL: Record<string, string> = {
   'claude-code': 'Claude Code',
   codex: 'Codex',
 };
 
+type Panel = 'feed' | 'history' | 'hooks' | null;
+
+export interface HooksControl {
+  /** Actual install state; undefined until the server reported it. */
+  installed: boolean | undefined;
+  onInstall: () => void;
+}
+
 interface Props {
   selectedAgentId: number | null;
   onCloseCard: () => void;
+  readOnly: boolean;
+  hooks: HooksControl;
 }
 
-/** Summary bar, agent card and activity feed over the office. */
-export function ObservationHud({ selectedAgentId, onCloseCard }: Props) {
+/** Summary bar, agent card, activity feed, hooks wizard, history and replay over the office. */
+export function ObservationHud({ selectedAgentId, onCloseCard, readOnly, hooks }: Props) {
+  const t = useT();
+  const lang = useLanguage();
   const { agents, feed, synced } = useObservation();
-  const [feedOpen, setFeedOpen] = useState(false);
+  const [panel, setPanel] = useState<Panel>(null);
+  const history = useHistory(panel === 'history', readOnly);
   const counts = useMemo(() => countStatuses(agents.values()), [agents]);
   const selected = selectedAgentId !== null ? agents.get(selectedAgentId) : undefined;
-  const hooksOn = [...agents.values()].some((a) => a.channel === 'hooks');
+  const hooksOn =
+    hooks.installed === true || [...agents.values()].some((a) => a.channel === 'hooks');
+  const replaying = history.recording !== null;
 
   useEffect(() => {
-    if (!selected) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCloseCard();
+      if (e.key !== 'Escape') return;
+      if (selected) onCloseCard();
+      else if (panel) setPanel(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selected, onCloseCard]);
+  }, [selected, onCloseCard, panel]);
 
+  const toggle = (p: Exclude<Panel, null>) => setPanel((cur) => (cur === p ? null : p));
   const n = (v: number) => (synced ? String(v) : '–');
+  const fallback = (id: number) => t('card.agentFallback', { id });
 
   return (
     <>
-      <div className="obs-panel obs-bar" role="status" aria-label="Agent summary">
-        <div className="obs-stat" title="Agent sessions detected on this machine">
+      <div className="obs-panel obs-bar" role="status" aria-label={t('bar.aria')}>
+        <div className="obs-stat" title={t('bar.agentsTitle')}>
           <b>{n(counts.detected)}</b>
-          <span>agents</span>
+          <span>
+            {synced
+              ? t(`bar.agents.${pluralForm(lang, counts.detected)}` as const)
+              : t('bar.agents')}
+          </span>
         </div>
         <div className="obs-sep" />
-        <Stat color={STATUS_COLOR.working} value={n(counts.working)} label="working" />
-        <Stat color={STATUS_COLOR.waiting_permission} value={n(counts.waiting)} label="waiting" />
-        <Stat color={STATUS_COLOR.idle} value={n(counts.idle)} label="idle" />
+        <Stat color={STATUS_COLOR.working} value={n(counts.working)} label={t('bar.working')} />
+        <Stat
+          color={STATUS_COLOR.waiting_permission}
+          value={n(counts.waiting)}
+          label={t('bar.waiting')}
+        />
+        <Stat color={STATUS_COLOR.idle} value={n(counts.idle)} label={t('bar.idle')} />
         {counts.unknown > 0 && (
-          <Stat color={STATUS_COLOR.unknown} value={n(counts.unknown)} label="unknown" />
+          <Stat color={STATUS_COLOR.unknown} value={n(counts.unknown)} label={t('bar.unknown')} />
         )}
         <div className="obs-sep" />
         <button
           type="button"
           className="obs-btn"
-          aria-pressed={feedOpen}
-          onClick={() => setFeedOpen((v) => !v)}
+          aria-pressed={panel === 'feed'}
+          onClick={() => toggle('feed')}
         >
-          Activity
+          {t('bar.activity')}
         </button>
-        {synced && counts.detected > 0 && (
-          <span
-            className="obs-stat obs-channel"
-            title={
-              hooksOn
-                ? 'Instant events from Claude Code hooks'
-                : 'Read from session transcripts; waiting states are less precise without hooks'
-            }
-          >
-            {hooksOn ? 'hooks' : 'transcripts'}
-          </span>
-        )}
+        <button
+          type="button"
+          className="obs-btn"
+          aria-pressed={panel === 'history'}
+          onClick={() => toggle('history')}
+        >
+          {t('bar.history')}
+        </button>
+        <button
+          type="button"
+          className={`obs-btn obs-channel ${hooksOn ? 'is-on' : 'is-off'}`}
+          aria-pressed={panel === 'hooks'}
+          title={hooksOn ? t('bar.hooksTitle') : t('bar.transcriptsTitle')}
+          onClick={() => toggle('hooks')}
+        >
+          <i
+            className="obs-dot"
+            style={{ background: hooksOn ? 'var(--obs-idle)' : 'var(--obs-waiting)' }}
+          />
+          {hooksOn ? t('bar.hooks') : t('bar.transcripts')}
+        </button>
+        <div className="obs-sep" />
+        <LanguageSwitch lang={lang} t={t} />
       </div>
 
-      {selected && <AgentCard agent={selected} onClose={onCloseCard} />}
-      {feedOpen && <ActivityFeed feed={feed} agents={agents} onClose={() => setFeedOpen(false)} />}
+      {replaying && history.recording && (
+        <ReplayPlayer
+          key={history.recording.sessionId}
+          recording={history.recording}
+          session={
+            history.state.kind === 'ready'
+              ? history.state.sessions.find((s) => s.sessionId === history.recording!.sessionId)
+              : undefined
+          }
+          t={t}
+          lang={lang}
+          onExit={history.closeRecording}
+        />
+      )}
+
+      {selected && !replaying && (
+        <AgentCard agent={selected} onClose={onCloseCard} t={t} lang={lang} fallback={fallback} />
+      )}
+
+      {panel === 'feed' && (
+        <ActivityFeed
+          feed={feed}
+          agents={agents}
+          t={t}
+          lang={lang}
+          fallback={fallback}
+          onClose={() => setPanel(null)}
+        />
+      )}
+
+      {panel === 'hooks' && (
+        <HooksPanel
+          hooks={hooks}
+          hooksOn={hooksOn}
+          readOnly={readOnly}
+          t={t}
+          onClose={() => setPanel(null)}
+        />
+      )}
+
+      {panel === 'history' && (
+        <HistoryPanel
+          readOnly={readOnly}
+          state={history.state}
+          pendingSession={history.pendingSession}
+          onReplay={(id) => {
+            history.loadSession(id);
+            setPanel(null);
+          }}
+          t={t}
+          lang={lang}
+          onClose={() => setPanel(null)}
+        />
+      )}
     </>
   );
 }
+
+// ── Pieces ─────────────────────────────────────────────────────
 
 function Stat({ color, value, label }: { color: string; value: string; label: string }) {
   return (
@@ -108,79 +206,147 @@ function Stat({ color, value, label }: { color: string; value: string; label: st
   );
 }
 
-function Field({ label, value, mono }: { label: string; value: string | null; mono?: boolean }) {
+function LanguageSwitch({ lang, t }: { lang: Language; t: Translate }) {
+  return (
+    <div className="obs-lang" role="group" aria-label={t('lang.label')}>
+      {LANGUAGES.map((l) => (
+        <button
+          key={l}
+          type="button"
+          className="obs-btn"
+          aria-pressed={lang === l}
+          title={t(l === 'en' ? 'lang.en' : 'lang.ru')}
+          onClick={() => setLanguage(l)}
+        >
+          {l.toUpperCase()}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function PanelHeader({
+  title,
+  closeLabel,
+  onClose,
+}: {
+  title: string;
+  closeLabel: string;
+  onClose: () => void;
+}) {
+  return (
+    <header>
+      {title}
+      <button type="button" className="obs-close" aria-label={closeLabel} onClick={onClose}>
+        ×
+      </button>
+    </header>
+  );
+}
+
+function Field({
+  label,
+  value,
+  mono,
+  t,
+}: {
+  label: string;
+  value: string | null;
+  mono?: boolean;
+  t: Translate;
+}) {
   return (
     <>
       <dt>{label}</dt>
       <dd className={value === null ? 'obs-na' : mono ? 'obs-mono' : undefined}>
-        {value ?? 'Unknown'}
+        {value ?? t('card.unknown')}
       </dd>
     </>
   );
 }
 
-function AgentCard({ agent, onClose }: { agent: AgentObservation; onClose: () => void }) {
+function AgentCard({
+  agent,
+  onClose,
+  t,
+  lang,
+  fallback,
+}: {
+  agent: AgentObservation;
+  onClose: () => void;
+  t: Translate;
+  lang: Language;
+  fallback: (id: number) => string;
+}) {
   const now = useNow(15_000);
+  const name = agentLabel(agent, fallback);
   const role = agent.isTeamLead
-    ? 'Team lead'
+    ? t('card.roleLead')
     : agent.teamName
-      ? `Teammate in ${agent.teamName}`
+      ? t('card.roleTeammateIn', { team: agent.teamName })
       : agent.leadAgentId !== null
-        ? 'Teammate'
-        : 'Main agent';
+        ? t('card.roleTeammate')
+        : t('card.roleMain');
   const pct =
     agent.contextTokens !== null && agent.maxContextTokens
       ? Math.min(100, Math.round((agent.contextTokens / agent.maxContextTokens) * 100))
       : null;
+  const action = agent.currentAction ?? agent.lastAction;
 
   return (
-    <section className="obs-panel obs-card" aria-label={`Agent ${agentLabel(agent)}`}>
+    <section className="obs-panel obs-card" aria-label={t('card.aria', { name })}>
       <div className="obs-card-head">
         <div className="obs-card-title">
-          <h2 title={agentLabel(agent)}>{agentLabel(agent)}</h2>
+          <h2 title={name}>{name}</h2>
           <span className="obs-status">
             <i className="obs-dot" style={{ background: STATUS_COLOR[agent.status] }} />
-            {STATUS_LABEL[agent.status]}
+            {t(`status.${agent.status}` as const)}
             {agent.activity && agent.status === 'working'
-              ? ` · ${ACTIVITY_LABEL[agent.activity]}`
+              ? ` · ${t(`activity.${agent.activity}` as const)}`
               : ''}
           </span>
         </div>
-        <button type="button" className="obs-close" aria-label="Close card" onClick={onClose}>
+        <button type="button" className="obs-close" aria-label={t('card.close')} onClick={onClose}>
           ×
         </button>
       </div>
 
-      {(agent.currentAction || agent.lastAction) && (
+      {action && (
         <p className="obs-now">
-          <small>{agent.currentAction ? 'Now' : 'Last action'}</small>
-          {agent.currentAction ?? agent.lastAction}
+          <small>{agent.currentAction ? t('card.now') : t('card.lastAction')}</small>
+          {translateAction(lang, action)}
         </p>
       )}
 
       <dl className="obs-fields">
-        <Field label="Role" value={role} />
-        <Field label="Environment" value={SOURCE_LABEL[agent.source] ?? agent.source} />
-        <Field label="Project" value={agent.project} />
-        <Field label="Branch" value={agent.gitBranch} mono />
-        <Field label="Model" value={agent.model} mono />
-        <Field label="Session" value={agent.sessionId.slice(0, 8)} mono />
+        <Field t={t} label={t('card.role')} value={role} />
         <Field
-          label="Last activity"
-          value={agent.lastEventAt !== null ? relativeTime(agent.lastEventAt, now) : null}
+          t={t}
+          label={t('card.environment')}
+          value={SOURCE_LABEL[agent.source] ?? agent.source}
+        />
+        <Field t={t} label={t('card.project')} value={agent.project} />
+        <Field t={t} label={t('card.branch')} value={agent.gitBranch} mono />
+        <Field t={t} label={t('card.model')} value={agent.model} mono />
+        <Field t={t} label={t('card.session')} value={agent.sessionId.slice(0, 8)} mono />
+        <Field
+          t={t}
+          label={t('card.lastActivity')}
+          value={agent.lastEventAt !== null ? relativeTime(agent.lastEventAt, now, t) : null}
         />
         <Field
-          label="Sub-agents"
+          t={t}
+          label={t('card.subagents')}
           value={
             agent.subagents.length > 0
-              ? agent.subagents.map((s) => s.label.replace(/^Subtask:\s*/, '')).join(', ')
-              : 'None active'
+              ? agent.subagents.map((s) => translateAction(lang, s.label)).join(', ')
+              : t('card.noSubagents')
           }
         />
-        <dt>Context</dt>
+        <dt>{t('card.context')}</dt>
         <dd className={pct === null ? 'obs-na' : undefined}>
           {pct === null ? (
-            'Unknown'
+            t('card.unknown')
           ) : (
             <>
               {formatTokens(agent.contextTokens!)} / ~{formatTokens(agent.maxContextTokens!)} ({pct}
@@ -194,8 +360,8 @@ function AgentCard({ agent, onClose }: { agent: AgentObservation; onClose: () =>
       </dl>
 
       <p className="obs-note">
-        {agent.channel === 'hooks' ? 'Live from hooks' : 'From the session transcript'} · observing
-        only
+        {agent.channel === 'hooks' ? t('card.fromHooks') : t('card.fromTranscript')} ·{' '}
+        {t('card.observingOnly')}
       </p>
     </section>
   );
@@ -205,30 +371,31 @@ function ActivityFeed({
   feed,
   agents,
   onClose,
+  t,
+  lang,
+  fallback,
 }: {
-  feed: readonly { seq: number; ts: number; agentId: number; text: string }[];
+  feed: readonly ActivityEntry[];
   agents: ReadonlyMap<number, AgentObservation>;
   onClose: () => void;
+  t: Translate;
+  lang: Language;
+  fallback: (id: number) => string;
 }) {
   const items = [...feed].reverse();
   return (
-    <section className="obs-panel obs-feed" aria-label="Activity feed">
-      <header>
-        Activity
-        <button type="button" className="obs-close" aria-label="Close activity" onClick={onClose}>
-          ×
-        </button>
-      </header>
+    <section className="obs-panel obs-feed" aria-label={t('feed.aria')}>
+      <PanelHeader title={t('feed.title')} closeLabel={t('feed.close')} onClose={onClose} />
       <ol>
-        {items.length === 0 && <span className="obs-empty">No activity observed yet.</span>}
+        {items.length === 0 && <span className="obs-empty">{t('feed.empty')}</span>}
         {items.map((e) => {
           const a = agents.get(e.agentId);
           return (
             <li key={e.seq}>
-              <time dateTime={new Date(e.ts).toISOString()}>{clock(e.ts)}</time>
+              <time dateTime={new Date(e.ts).toISOString()}>{clock(e.ts, lang)}</time>
               <span>
-                <span className="obs-who">{a ? agentLabel(a) : `Agent #${e.agentId}`}</span>
-                {e.text}
+                <span className="obs-who">{a ? agentLabel(a, fallback) : fallback(e.agentId)}</span>
+                {entryText(e, t, lang)}
               </span>
             </li>
           );
@@ -238,27 +405,280 @@ function ActivityFeed({
   );
 }
 
+function HooksPanel({
+  hooks,
+  hooksOn,
+  readOnly,
+  t,
+  onClose,
+}: {
+  hooks: HooksControl;
+  hooksOn: boolean;
+  readOnly: boolean;
+  t: Translate;
+  onClose: () => void;
+}) {
+  const [phase, setPhase] = useState<'idle' | 'installing' | 'failed'>('idle');
+  useEffect(() => {
+    if (phase !== 'installing' || hooks.installed === undefined) return;
+    // The server answers every install request with the ACTUAL state.
+    if (!hooks.installed) setPhase('failed');
+  }, [hooks.installed, phase]);
+  useEffect(() => {
+    if (phase !== 'installing') return;
+    const timer = setTimeout(() => setPhase((p) => (p === 'installing' ? 'failed' : p)), 8000);
+    return () => clearTimeout(timer);
+  }, [phase]);
+
+  return (
+    <section className="obs-panel obs-side" aria-label={t('hooks.title')}>
+      <PanelHeader title={t('hooks.title')} closeLabel={t('hooks.close')} onClose={onClose} />
+      <div className="obs-body">
+        {hooksOn ? (
+          <p className="obs-ok">{t('hooks.on')}</p>
+        ) : (
+          <>
+            <p>{t('hooks.off')}</p>
+            <ul className="obs-facts">
+              <li>{t('hooks.what')}</li>
+              <li>{t('hooks.data')}</li>
+              <li>{t('hooks.undo')}</li>
+              <li>{t('hooks.sessions')}</li>
+            </ul>
+            {readOnly ? (
+              <p className="obs-hint">{t('hooks.needToken')}</p>
+            ) : hooks.installed === undefined ? (
+              <p className="obs-hint">{t('hooks.unknown')}</p>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="obs-primary"
+                  disabled={phase === 'installing'}
+                  onClick={() => {
+                    setPhase('installing');
+                    hooks.onInstall();
+                  }}
+                >
+                  {phase === 'installing' ? t('hooks.installing') : t('hooks.enable')}
+                </button>
+                {phase === 'failed' && <p className="obs-warn">{t('hooks.failed')}</p>}
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function HistoryPanel({
+  readOnly,
+  state,
+  pendingSession,
+  onReplay,
+  t,
+  lang,
+  onClose,
+}: {
+  readOnly: boolean;
+  state: ReturnType<typeof useHistory>['state'];
+  pendingSession: string | null;
+  onReplay: (sessionId: string) => void;
+  t: Translate;
+  lang: Language;
+  onClose: () => void;
+}) {
+  return (
+    <section className="obs-panel obs-side" aria-label={t('history.title')}>
+      <PanelHeader title={t('history.title')} closeLabel={t('history.close')} onClose={onClose} />
+      {readOnly ? (
+        <p className="obs-body obs-hint">{t('history.needToken')}</p>
+      ) : state.kind === 'unavailable' ? (
+        <p className="obs-body obs-hint">{t('history.unavailable')}</p>
+      ) : state.kind !== 'ready' ? (
+        <p className="obs-body obs-hint">{t('history.loading')}</p>
+      ) : state.sessions.length === 0 ? (
+        <p className="obs-body obs-hint">{t('history.empty')}</p>
+      ) : (
+        <ol className="obs-sessions">
+          {state.sessions.map((s) => (
+            <li key={s.sessionId}>
+              <div className="obs-session-main">
+                <b>{s.project ?? s.sessionId.slice(0, 8)}</b>
+                {s.live && <span className="obs-live">{t('history.live')}</span>}
+                <small>
+                  {SOURCE_LABEL[s.source] ?? s.source} · {dateRange(s, lang)} ·{' '}
+                  {t('history.events', { n: s.events })}
+                </small>
+              </div>
+              <button
+                type="button"
+                className="obs-btn"
+                disabled={pendingSession !== null}
+                onClick={() => onReplay(s.sessionId)}
+              >
+                {t('history.replay')}
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+      <p className="obs-note obs-footnote">{t('history.retention')}</p>
+    </section>
+  );
+}
+
+function ReplayPlayer({
+  recording,
+  session,
+  t,
+  lang,
+  onExit,
+}: {
+  recording: SessionRecording;
+  session: HistorySession | undefined;
+  t: Translate;
+  lang: Language;
+  onExit: () => void;
+}) {
+  const entries: HistoryEntry[] = recording.entries;
+  const [index, setIndex] = useState(0);
+  const [playing, setPlaying] = useState(entries.length > 1);
+  const [speed, setSpeed] = useState<number>(16);
+
+  useEffect(() => {
+    if (!playing) return;
+    const delay = delayToNext(entries, index, speed);
+    if (delay === null) {
+      setPlaying(false);
+      return;
+    }
+    const timer = setTimeout(() => setIndex((i) => i + 1), delay);
+    return () => clearTimeout(timer);
+  }, [playing, index, speed, entries]);
+
+  const current = entries[index];
+  const statuses = statusAt(entries, index);
+  const title = session?.project ?? entries[0]?.project ?? recording.sessionId.slice(0, 8);
+
+  return (
+    <>
+      <div className="obs-replay-banner" role="status">
+        <b>{t('replay.badge')}</b>
+        <span>
+          {title} · {t('replay.notice')}
+        </span>
+      </div>
+      <div className="obs-replay-dim" aria-hidden="true" />
+      <section className="obs-panel obs-player" aria-label={t('replay.badge')}>
+        {entries.length === 0 ? (
+          <p className="obs-hint">{t('replay.empty')}</p>
+        ) : (
+          <>
+            <div className="obs-player-now">
+              <time>{fullClock(current.ts, lang)}</time>
+              <span>{entryText(current, t, lang)}</span>
+            </div>
+            <div className="obs-player-status">
+              <small>{t('replay.statusAt')}:</small>
+              {[...statuses].map(([agentId, s]) => (
+                <span key={agentId} className="obs-status">
+                  <i className="obs-dot" style={{ background: STATUS_COLOR[s] }} />
+                  {t(`status.${s}` as const)}
+                </span>
+              ))}
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={Math.max(0, entries.length - 1)}
+              value={index}
+              aria-label={t('replay.position', { i: index + 1, n: entries.length })}
+              onChange={(e) => {
+                setPlaying(false);
+                setIndex(Number(e.target.value));
+              }}
+            />
+            <div className="obs-player-controls">
+              <button type="button" className="obs-btn" onClick={() => setPlaying((p) => !p)}>
+                {playing ? t('replay.pause') : t('replay.play')}
+              </button>
+              <button
+                type="button"
+                className="obs-btn"
+                onClick={() => {
+                  setIndex(0);
+                  setPlaying(true);
+                }}
+              >
+                {t('replay.restart')}
+              </button>
+              <span className="obs-speed" role="group" aria-label={t('replay.speed')}>
+                {REPLAY_SPEEDS.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className="obs-btn"
+                    aria-pressed={speed === s}
+                    onClick={() => setSpeed(s)}
+                  >
+                    ×{s}
+                  </button>
+                ))}
+              </span>
+              <span className="obs-player-pos">
+                {t('replay.position', { i: index + 1, n: entries.length })}
+              </span>
+              <button type="button" className="obs-btn obs-exit" onClick={onExit}>
+                {t('replay.exit')}
+              </button>
+            </div>
+            {recording.truncated && <p className="obs-note">{t('replay.truncated')}</p>}
+          </>
+        )}
+      </section>
+    </>
+  );
+}
+
+// ── Formatting ─────────────────────────────────────────────────
+
 function useNow(intervalMs: number): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), intervalMs);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(timer);
   }, [intervalMs]);
   return now;
 }
 
-function relativeTime(ts: number, now: number): string {
+function relativeTime(ts: number, now: number, t: Translate): string {
   const s = Math.max(0, Math.round((now - ts) / 1000));
-  if (s < 10) return 'just now';
-  if (s < 60) return `${s}s ago`;
+  if (s < 10) return t('time.justNow');
+  if (s < 60) return t('time.seconds', { n: s });
   const m = Math.round(s / 60);
-  if (m < 60) return `${m} min ago`;
-  const h = Math.round(m / 60);
-  return `${h} h ago`;
+  if (m < 60) return t('time.minutes', { n: m });
+  return t('time.hours', { n: Math.round(m / 60) });
 }
 
-function clock(ts: number): string {
-  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+function clock(ts: number, lang: Language): string {
+  return new Date(ts).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' });
+}
+
+function fullClock(ts: number, lang: Language): string {
+  return new Date(ts).toLocaleString(lang, {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
+function dateRange(s: HistorySession, lang: Language): string {
+  const d = new Date(s.firstTs).toLocaleDateString(lang, { day: '2-digit', month: 'short' });
+  return `${d} ${clock(s.firstTs, lang)}–${clock(s.lastTs, lang)}`;
 }
 
 function formatTokens(n: number): string {

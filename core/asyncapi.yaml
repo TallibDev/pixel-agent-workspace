@@ -105,6 +105,9 @@ components:
         - $ref: '#/components/schemas/AgentObservationUpdated'
         - $ref: '#/components/schemas/AgentObservationRemoved'
         - $ref: '#/components/schemas/ActivityEvent'
+        - $ref: '#/components/schemas/HistorySessions'
+        - $ref: '#/components/schemas/SessionHistory'
+        - $ref: '#/components/schemas/HistoryUnavailable'
         # Layout
         - $ref: '#/components/schemas/LayoutLoaded'
         # Assets
@@ -163,6 +166,9 @@ components:
         - $ref: '#/components/schemas/RemoveDirectory'
         - $ref: '#/components/schemas/RequestDirectorySuggestions'
         - $ref: '#/components/schemas/RequestDiagnostics'
+        # Observation history (Pixel Agent Workspace)
+        - $ref: '#/components/schemas/RequestHistorySessions'
+        - $ref: '#/components/schemas/RequestSessionHistory'
       discriminator: type
 
     # ── Server message variants ────────────────────────────────────
@@ -576,6 +582,87 @@ components:
           type: boolean
         leadAgentId:
           type: [integer, 'null']
+
+    HistorySessions:
+      description: Sessions found in the retained history, newest activity first.
+      type: object
+      additionalProperties: false
+      required: [type, sessions]
+      properties:
+        type:
+          const: historySessions
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistorySession'
+
+    SessionHistory:
+      description: Recorded events of one session, oldest first. `truncated` when older events were cut.
+      type: object
+      additionalProperties: false
+      required: [type, sessionId, entries, truncated]
+      properties:
+        type:
+          const: sessionHistory
+        sessionId:
+          type: string
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistoryEntry'
+        truncated:
+          type: boolean
+
+    HistoryUnavailable:
+      description: History could not be served (journal disabled).
+      type: object
+      additionalProperties: false
+      required: [type, reason]
+      properties:
+        type:
+          const: historyUnavailable
+        reason:
+          type: string
+
+    HistorySession:
+      type: object
+      additionalProperties: false
+      required: [sessionId, source, project, firstTs, lastTs, events, live]
+      properties:
+        sessionId:
+          type: string
+        source:
+          type: string
+        project:
+          type: [string, 'null']
+        firstTs:
+          type: number
+        lastTs:
+          type: number
+        events:
+          type: integer
+        live:
+          type: boolean
+
+    HistoryEntry:
+      type: object
+      additionalProperties: false
+      required: [ts, kind, text, agentId, sessionId, source, project]
+      properties:
+        ts:
+          type: number
+        kind:
+          $ref: '#/components/schemas/ActivityKind'
+        text:
+          type: string
+        agentId:
+          type: integer
+        sessionId:
+          type: string
+        source:
+          type: string
+        project:
+          type: [string, 'null']
 
     ObservedChannel:
       type: string
@@ -1482,6 +1569,26 @@ components:
       properties:
         type:
           const: requestDiagnostics
+
+    RequestHistorySessions:
+      description: List sessions in the retained observation history (privileged; answered with historySessions).
+      type: object
+      additionalProperties: false
+      required: [type]
+      properties:
+        type:
+          const: requestHistorySessions
+
+    RequestSessionHistory:
+      description: All retained events of one session (privileged; answered with sessionHistory).
+      type: object
+      additionalProperties: false
+      required: [type, sessionId]
+      properties:
+        type:
+          const: requestSessionHistory
+        sessionId:
+          type: string
 
     # ── Supporting schemas ─────────────────────────────────────────
 

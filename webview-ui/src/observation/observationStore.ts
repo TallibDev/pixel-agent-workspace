@@ -106,14 +106,9 @@ export function bucketOf(status: ObservedStatus): Exclude<keyof StatusCounts, 'd
 }
 
 /** Display name from what the source told us; never an invented persona. */
-export function agentLabel(a: Pick<AgentObservation, 'id' | 'agentName' | 'project'>): string {
-  return a.agentName ?? a.project ?? `Agent #${a.id}`;
+export function agentLabel(
+  a: Pick<AgentObservation, 'id' | 'agentName' | 'project'>,
+  fallback: (id: number) => string = (id) => `Agent #${id}`,
+): string {
+  return a.agentName ?? a.project ?? fallback(a.id);
 }
-
-export const STATUS_LABEL: Record<ObservedStatus, string> = {
-  working: 'Working',
-  waiting_permission: 'Needs permission',
-  waiting_user: 'Waiting for you',
-  idle: 'Idle — turn finished',
-  unknown: 'Unknown',
-};

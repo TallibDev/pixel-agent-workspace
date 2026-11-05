@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 
+import { useT } from '../i18n/index.js';
 import { isSoundEnabled, setSoundEnabled } from '../notificationSound.js';
 import { isBrowserRuntime } from '../runtime.js';
 import { transport } from '../transport/index.js';
@@ -68,12 +69,13 @@ export function SettingsModal({
   onExportLayout,
   onImportLayout,
 }: SettingsModalProps) {
+  const t = useT();
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [assetDirDraft, setAssetDirDraft] = useState('');
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Settings">
+    <Modal isOpen={isOpen} onClose={onClose} title={t('settings.title')}>
       {/* Open Sessions Folder opens an OS file manager — impossible in the browser. */}
       {!isBrowserRuntime && (
         <MenuItem
@@ -180,7 +182,7 @@ export function SettingsModal({
         </div>
       ))}
       <Checkbox
-        label="Sound Notifications"
+        label={t('settings.sound')}
         checked={soundLocal}
         onChange={() => {
           const newVal = !isSoundEnabled();
@@ -190,17 +192,17 @@ export function SettingsModal({
         }}
       />
       <Checkbox
-        label="Watch All Sessions"
+        label={t('settings.watchAll')}
         checked={watchAllSessions}
         onChange={onToggleWatchAllSessions}
       />
       <Checkbox
-        label="Instant Detection (Hooks)"
+        label={t('settings.hooks')}
         checked={hooksInstalled}
         onChange={onToggleHooksEnabled}
       />
       <Checkbox
-        label="Always Show Labels"
+        label={t('settings.labels')}
         checked={alwaysShowOverlay}
         onChange={onToggleAlwaysShowOverlay}
       />
@@ -208,13 +210,13 @@ export function SettingsModal({
           Standalone has no terminals at all, so nothing there would ever ghost. */}
       {!isBrowserRuntime && (
         <Checkbox
-          label="Display Headless as Ghosts"
+          label={t('settings.ghosts')}
           checked={ghostHeadlessAgents}
           onChange={onToggleGhostHeadlessAgents}
         />
       )}
       {showAreasAvailable && (
-        <Checkbox label="Show Areas" checked={showAreas} onChange={onToggleShowAreas} />
+        <Checkbox label={t('settings.areas')} checked={showAreas} onChange={onToggleShowAreas} />
       )}
       {/* Permission posture, set once instead of per launch: while on, the host
           adds the CLI's skip-permissions flag to every agent it launches. */}
@@ -236,11 +238,11 @@ export function SettingsModal({
           host contributes: VS Code its workspace folders, standalone the
           directory the server was started from. */}
       <Checkbox
-        label={isBrowserRuntime ? 'Show Start Directory' : 'Show Workspace Folders'}
+        label={isBrowserRuntime ? t('settings.startDir') : t('settings.workspaceFolders')}
         checked={showHostDirectories}
         onChange={onToggleShowHostDirectories}
       />
-      <Checkbox label="Debug View" checked={isDebugMode} onChange={onToggleDebugMode} />
+      <Checkbox label={t('settings.debug')} checked={isDebugMode} onChange={onToggleDebugMode} />
     </Modal>
   );
 }

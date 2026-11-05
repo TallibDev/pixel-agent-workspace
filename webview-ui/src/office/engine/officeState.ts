@@ -25,6 +25,13 @@ import {
   layoutToTileMap,
 } from '../layout/layoutSerializer.js';
 import { findPath, getWalkableTiles, isWalkable } from '../layout/tileMap.js';
+import {
+  dwellSeconds,
+  isLeisureEligible,
+  type LeisureCharacter,
+  LeisureDirector,
+  opposite,
+} from '../life/leisure.js';
 import { getPetCount, getPetName } from '../sprites/petSpriteData.js';
 import { getLoadedCharacterCount } from '../sprites/spriteData.js';
 import type {
@@ -38,7 +45,7 @@ import type {
   TileType as TileTypeVal,
 } from '../types.js';
 import { CharacterState, Direction, PetState, TILE_SIZE } from '../types.js';
-import { createCharacter, updateCharacter } from './characters.js';
+import { createCharacter, type LeisureHooks, updateCharacter } from './characters.js';
 import { advanceMatrixEffect, startMatrixEffect } from './matrixEffectState.js';
 import { createPet, updatePet } from './petEntity.js';
 import { anchorTile, closestFreeSeat } from './seatPlacement.js';
@@ -59,6 +66,20 @@ export class OfficeState {
   furniture: FurnitureInstance[];
   walkableTiles: Array<{ col: number; row: number }>;
   characters: Map<number, Character> = new Map();
+  /** Furniture as rendered this frame (on-state types), for the night lighting pass. */
+  lightFurniture: PlacedFurniture[] = [];
+  /** Pixel Agent Workspace: free-time behaviour for idle characters (no AI). */
+  private readonly leisureDirector = new LeisureDirector();
+  private readonly leisureHooks: LeisureHooks = {
+    pick: (ch) => {
+      if (!isLeisureEligible(ch)) return null;
+      const isFree = (col: number, row: number) => this.isFreeForLeisure(col, row, ch.id);
+      this.leisureDirector.refresh(this.layout, this.layout.furniture, this.seats, isFree);
+      return this.leisureDirector.pick(ch, this.characters.values(), isFree);
+    },
+    arrive: (ch) => this.arriveAtLeisure(ch as LeisureCharacter),
+    release: (ch) => this.leisureDirector.release(ch.id),
+  };
   pets: Pet[] = [];
   /** Accumulated time for furniture animation frame cycling */
   furnitureAnimTimer = 0;
@@ -875,6 +896,7 @@ export class OfficeState {
 
     if (autoOnTiles.size === 0) {
       this.furniture = layoutToFurnitureInstances(this.layout.furniture);
+      this.lightFurniture = this.layout.furniture;
       return;
     }
 
@@ -905,6 +927,7 @@ export class OfficeState {
     });
 
     this.furniture = layoutToFurnitureInstances(modifiedFurniture);
+    this.lightFurniture = modifiedFurniture;
   }
 
   setAgentTool(id: number, tool: string | null): void {
@@ -1122,6 +1145,50 @@ export class OfficeState {
     ch.maxContextTokens = maxContextTokens;
   }
 
+  /** Walkable, unblocked and not standing room of another character. */
+  private isFreeForLeisure(col: number, row: number, selfId: number): boolean {
+    if (!isWalkable(col, row, this.tileMap, this.blockedTiles)) return false;
+    for (const other of this.characters.values()) {
+      if (other.id !== selfId && other.tileCol === col && other.tileRow === row) return false;
+    }
+    return true;
+  }
+
+  private arriveAtLeisure(ch: LeisureCharacter): void {
+    const l = ch.leisure;
+    if (!l) return;
+    l.arrived = true;
+    ch.dir = l.face;
+    const dwell = dwellSeconds(l.activity);
+    if (l.sit) {
+      ch.state = CharacterState.TYPE;
+      ch.seatTimer = dwell;
+      ch.frame = 0;
+      ch.frameTimer = 0;
+      return;
+    }
+    ch.wanderTimer = dwell;
+    if (l.activity === 'chat' && l.partnerId !== undefined) {
+      const partner = this.characters.get(l.partnerId) as LeisureCharacter | undefined;
+      const adjacent =
+        partner &&
+        Math.abs(partner.tileCol - ch.tileCol) + Math.abs(partner.tileRow - ch.tileRow) === 1;
+      if (!partner || !adjacent || !isLeisureEligible(partner) || partner.path.length > 0) {
+        ch.leisure = null; // the partner walked off or went back to work
+        return;
+      }
+      partner.dir = opposite(ch.dir);
+      partner.wanderTimer = Math.max(partner.wanderTimer, dwell);
+      partner.leisure = {
+        activity: 'chat',
+        face: partner.dir,
+        sit: false,
+        partnerId: ch.id,
+        arrived: true,
+      };
+    }
+  }
+
   update(dt: number): void {
     // Furniture animation cycling
     const prevFrame = Math.floor(this.furnitureAnimTimer / FURNITURE_ANIM_INTERVAL_SEC);
@@ -1147,7 +1214,15 @@ export class OfficeState {
 
       // Temporarily unblock own seat so character can pathfind to it
       this.withOwnSeatUnblocked(ch, () =>
-        updateCharacter(ch, dt, this.walkableTiles, this.seats, this.tileMap, this.blockedTiles),
+        updateCharacter(
+          ch,
+          dt,
+          this.walkableTiles,
+          this.seats,
+          this.tileMap,
+          this.blockedTiles,
+          this.leisureHooks,
+        ),
       );
 
       // Tick bubble timer for waiting bubbles

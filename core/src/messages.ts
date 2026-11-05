@@ -29,6 +29,9 @@ export type ServerMessage =
   | AgentObservationUpdated
   | AgentObservationRemoved
   | ActivityEvent
+  | HistorySessions
+  | SessionHistory
+  | HistoryUnavailable
   | LayoutLoaded
   | FurnitureAssetsLoaded
   | CharacterSpritesLoaded
@@ -79,7 +82,9 @@ export type ClientMessage =
   | SaveDirectory
   | RemoveDirectory
   | RequestDirectorySuggestions
-  | RequestDiagnostics;
+  | RequestDiagnostics
+  | RequestHistorySessions
+  | RequestSessionHistory;
 
 export interface ProviderCapabilities {
   type: 'providerCapabilities';
@@ -288,6 +293,43 @@ export interface AgentObservationRemoved {
 export interface ActivityEvent {
   type: 'activityEvent';
   entry: ActivityEntry;
+}
+
+export interface HistorySessions {
+  type: 'historySessions';
+  sessions: HistorySession[];
+}
+
+export interface HistorySession {
+  sessionId: string;
+  source: string;
+  project: string | null;
+  firstTs: number;
+  lastTs: number;
+  events: number;
+  live: boolean;
+}
+
+export interface SessionHistory {
+  type: 'sessionHistory';
+  sessionId: string;
+  entries: HistoryEntry[];
+  truncated: boolean;
+}
+
+export interface HistoryEntry {
+  ts: number;
+  kind: ActivityKind;
+  text: string;
+  agentId: number;
+  sessionId: string;
+  source: string;
+  project: string | null;
+}
+
+export interface HistoryUnavailable {
+  type: 'historyUnavailable';
+  reason: string;
 }
 
 export interface LayoutLoaded {
@@ -603,4 +645,13 @@ export interface RequestDirectorySuggestions {
 
 export interface RequestDiagnostics {
   type: 'requestDiagnostics';
+}
+
+export interface RequestHistorySessions {
+  type: 'requestHistorySessions';
+}
+
+export interface RequestSessionHistory {
+  type: 'requestSessionHistory';
+  sessionId: string;
 }

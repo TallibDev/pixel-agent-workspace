@@ -21,6 +21,8 @@ export interface ObservationOptions {
   flushDelayMs?: number;
   feedLimit?: number;
   readMeta?: (file: string | undefined) => TranscriptMeta;
+  /** Called for every feed entry with the agent it belongs to (history journal). */
+  onRecord?: (entry: ActivityEntry, agent: AgentObservation | undefined) => void;
 }
 
 const OWN_MESSAGE_TYPES = new Set([
@@ -54,6 +56,7 @@ export class ObservationTracker {
   private readonly feedLimit: number;
   private readonly readMeta: (file: string | undefined) => TranscriptMeta;
   private readonly listeners: Array<() => void> = [];
+  private readonly onRecord?: ObservationOptions['onRecord'];
 
   constructor(
     private readonly store: AgentStateStore,
@@ -63,6 +66,7 @@ export class ObservationTracker {
     this.flushDelayMs = opts.flushDelayMs ?? 120;
     this.feedLimit = opts.feedLimit ?? 300;
     this.readMeta = opts.readMeta ?? readTranscriptMeta;
+    this.onRecord = opts.onRecord;
 
     const onAdded = (id: number, agent: AgentState) => this.onAgentAdded(id, agent);
     const onRemoved = (id: number) => this.onAgentRemoved(id);
@@ -90,6 +94,11 @@ export class ObservationTracker {
       activity: [...this.feed],
       capturedAt: this.now(),
     };
+  }
+
+  /** Session ids of agents currently in the office. */
+  liveSessionIds(): Set<string> {
+    return new Set([...this.agents.values()].map((a) => a.obs.sessionId));
   }
 
   get(id: number): AgentObservation | undefined {
@@ -153,9 +162,12 @@ export class ObservationTracker {
   }
 
   private onAgentRemoved(id: number): void {
-    if (!this.agents.delete(id)) return;
+    const leaving = this.agents.get(id);
+    if (!leaving) return;
+    const last = this.materialize(leaving);
+    this.agents.delete(id);
     this.dirty.delete(id);
-    this.record(id, 'left', 'Session left the office');
+    this.record(id, 'left', 'Session left the office', last);
     this.store.broadcast({ type: 'agentObservationRemoved', id });
   }
 
@@ -302,8 +314,18 @@ export class ObservationTracker {
     };
   }
 
-  private record(agentId: number, kind: ActivityKind, text: string): void {
+  private record(
+    agentId: number,
+    kind: ActivityKind,
+    text: string,
+    agent: AgentObservation | undefined = this.get(agentId),
+  ): void {
     const entry: ActivityEntry = { seq: ++this.seq, ts: this.now(), agentId, kind, text };
+    try {
+      this.onRecord?.(entry, agent);
+    } catch {
+      /* history must never break live observation */
+    }
     this.feed.push(entry);
     if (this.feed.length > this.feedLimit) this.feed.splice(0, this.feed.length - this.feedLimit);
     this.store.broadcast({ type: 'activityEvent', entry });

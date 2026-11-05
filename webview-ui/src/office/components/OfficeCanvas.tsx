@@ -23,6 +23,7 @@ import type {
   SelectionRenderState,
 } from '../engine/renderer.js';
 import { renderFrame } from '../engine/renderer.js';
+import { collectLights, DEFAULT_NIGHT, renderLighting } from '../life/lighting.js';
 import { EditTool, TILE_SIZE } from '../types.js';
 import { computeNormalModeCursor } from './officeCanvasCursor.js';
 import { useCanvasTouchGestures } from './useCanvasTouchGestures.js';
@@ -218,6 +219,25 @@ export function OfficeCanvas({
           officeState.pets,
         );
         offsetRef.current = { x: offsetX, y: offsetY };
+
+        // Pixel Agent Workspace: night lighting (off while editing the layout).
+        if (!isEditMode) {
+          renderLighting(
+            ctx,
+            w,
+            h,
+            offsetX,
+            offsetY,
+            zoom,
+            collectLights(
+              officeState.lightFurniture.length > 0 ? officeState.lightFurniture : layout.furniture,
+              officeState.getCharacters(),
+            ),
+            DEFAULT_NIGHT,
+            performance.now() / 1000,
+            officeState.tileMap,
+          );
+        }
 
         // Store delete/rotate button bounds for hit-testing
         deleteButtonBoundsRef.current = editorRender?.deleteButtonBounds ?? null;

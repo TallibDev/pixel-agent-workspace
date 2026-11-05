@@ -9,6 +9,11 @@ Pixel Agent Workspace is built on third-party open-source work. This file record
 - Characters: based on [JIK-A-4, Metro City](https://jik-a-4.itch.io/metrocity-free-topdown-character-pack). They are a third-party asset under that author's terms and are **not** covered by the MIT licence above. Pixel Agent Workspace replaces them with original characters before any public release.
 - Furniture, floors and walls: introduced as open-source replacements in upstream PR #117. Per-file licences still have to be confirmed before a public release.
 
+## Pixel Agent Workspace original art
+
+- Everything under `webview-ui/public/assets/furniture/PAW_*` (night-city windows, neon sign, desk and floor lamps, coffee machine, fridge, kitchen counter) is drawn pixel by pixel in code by `scripts/paw-art/generate-art.mjs`. No third-party art is used. It is released under this repository's licence.
+- The night layout (`default-layout-2.json`) is generated from upstream's default layout by `scripts/paw-art/build-night-layout.mjs`.
+
 ## Claude-Office (ideas only)
 
 - Source: https://github.com/W17ant/Claude-Office (MIT).
