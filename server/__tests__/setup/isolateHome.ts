@@ -10,9 +10,9 @@
  *    temp directory, so a test that forgets to isolate itself is still safe.
  * 2. Writes and deletes of HOME are mirrored to USERPROFILE on Windows.
  */
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
 const sandboxHome = fs.mkdtempSync(path.join(os.tmpdir(), 'paw-test-home-'));
 const realEnv = process.env;
