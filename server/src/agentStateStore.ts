@@ -156,6 +156,9 @@ export class AgentStateStore {
       // them from sidecars after a restore. Persisting them would resurrect
       // immortal characters whose completion signal never comes.
       if (agent.spawnToolUseId) continue;
+      // Pixel Agent Workspace: Codex agents are re-discovered from their rollouts,
+      // never restored through the Claude transcript path.
+      if (agent.providerId === 'codex') continue;
       persisted.push({
         id: agent.id,
         sessionId: agent.sessionId,

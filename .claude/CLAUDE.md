@@ -23,6 +23,7 @@ The approved plan is in `docs/PLAN.md`.
 ## Where our code lives
 
 - `server/src/observation/` — observation tracker (honest per-agent model + feed), secret masking, transcript meta, history journal (`~/.pixel-agent-workspace/history/`, 14 days), `service.ts` wiring + history requests.
+- `server/src/providers/codex/` — read-only Codex observer (rollout parser + watcher → office agents with `providerId: 'codex'`). Never write under `~/.codex`. Limits in `docs/CODEX.md`.
 - `webview-ui/src/observation/` — HUD: summary bar, agent card, activity feed, hooks wizard, history, Replay.
 - `webview-ui/src/i18n/` — RU/EN dictionaries (`strings.ts`; ru must mirror en keys), `t`/`useT`, tool-status translation.
 - `webview-ui/src/office/life/` — `leisure.ts` (free time only when the agent is not active), `lighting.ts` (day/night pass, Canvas 2D), `timeOfDay.ts` (Day/Night/Auto mode, `paw.timeMode`, eased `nightness`, day sprite variants).

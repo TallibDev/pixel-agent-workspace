@@ -69,6 +69,16 @@ function apply(meta: TranscriptMeta, lines: string[]): void {
       continue;
     }
     if (rec.isSidechain === true) continue;
+    // Codex rollouts: facts live in the payload of session_meta / turn_context.
+    if (rec.type === 'session_meta' || rec.type === 'turn_context') {
+      const p = (rec.payload ?? {}) as Record<string, unknown>;
+      if (!meta.cwd && typeof p.cwd === 'string' && p.cwd) meta.cwd = p.cwd;
+      const git = (p.git ?? {}) as Record<string, unknown>;
+      if (!meta.gitBranch && typeof git.branch === 'string' && git.branch)
+        meta.gitBranch = git.branch;
+      if (!meta.model && typeof p.model === 'string' && p.model) meta.model = p.model;
+      continue;
+    }
     if (!meta.cwd && typeof rec.cwd === 'string' && rec.cwd) meta.cwd = rec.cwd;
     if (!meta.gitBranch && typeof rec.gitBranch === 'string' && rec.gitBranch) {
       meta.gitBranch = rec.gitBranch;
