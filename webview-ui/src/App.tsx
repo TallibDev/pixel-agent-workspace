@@ -29,6 +29,7 @@ import { useKeyboardViewport } from './hooks/useKeyboardViewport.js';
 import { useTerminalDrawer } from './hooks/useTerminalDrawer.js';
 import { MobileShell } from './mobile/MobileShell.js';
 import { useMobileShell } from './mobile/useMobileShell.js';
+import { ObservationHud } from './observation/ObservationHud.js';
 import { OfficeCanvas } from './office/components/OfficeCanvas.js';
 import { ToolOverlay } from './office/components/ToolOverlay.js';
 import { EditorState } from './office/editor/editorState.js';
@@ -150,6 +151,10 @@ function App() {
     useCallback((onChange: () => void) => getOfficeState().subscribeSelection(onChange), []),
     () => getOfficeState().selectedAgentId,
   );
+
+  const closeAgentCard = useCallback(() => {
+    getOfficeState().selectedAgentId = null;
+  }, []);
 
   // Standalone only: every input here stays false/empty under VS Code. Owns the
   // active tab on both shells; the desktop-only bits (isOpen, width, resize)
@@ -497,6 +502,11 @@ function App() {
           {/* Mobile: pinch replaces the zoom buttons, and the toolbar's
                 jobs move to the card bar (+) and the floating Settings button. */}
           {!isMobile && <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />}
+
+          {/* Pixel Agent Workspace: observation summary, agent card, activity feed */}
+          {!editor.isEditMode && (
+            <ObservationHud selectedAgentId={focusedAgentId} onCloseCard={closeAgentCard} />
+          )}
 
           {/* Vignette overlay */}
           <div

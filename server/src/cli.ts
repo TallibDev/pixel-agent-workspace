@@ -32,6 +32,7 @@ import {
   WILDCARD_HOSTNAMES,
 } from './constants.js';
 import { FileStateAdapter } from './fileStateAdapter.js';
+import { attachObservationTracker } from './observation/observationTracker.js';
 import { claudeProvider, copyHookScript, hookProviderById } from './providers/index.js';
 import { PixelAgentsServer } from './server.js';
 import { PtySessionManager } from './terminal/ptySessionManager.js';
@@ -229,6 +230,8 @@ async function main(): Promise<void> {
   const store = new AgentStateStore();
   const adapter = new FileStateAdapter({ namespace: 'standalone' });
   store.setAdapter(adapter);
+  // Pixel Agent Workspace: honest per-agent observation model + activity feed.
+  attachObservationTracker(store);
 
   // ── Create server ──
   const server = new PixelAgentsServer();

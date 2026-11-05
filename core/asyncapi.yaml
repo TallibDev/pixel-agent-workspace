@@ -100,6 +100,11 @@ components:
         - $ref: '#/components/schemas/AgentTeamInfo'
         # Context window
         - $ref: '#/components/schemas/AgentContextUsage'
+        # Observation model (Pixel Agent Workspace)
+        - $ref: '#/components/schemas/ObservationSnapshot'
+        - $ref: '#/components/schemas/AgentObservationUpdated'
+        - $ref: '#/components/schemas/AgentObservationRemoved'
+        - $ref: '#/components/schemas/ActivityEvent'
         # Layout
         - $ref: '#/components/schemas/LayoutLoaded'
         # Assets
@@ -455,6 +460,164 @@ components:
           type: integer
         maxContextTokens:
           type: integer
+
+    ObservationSnapshot:
+      description: |
+        Full observation state for a (re)connecting client: every tracked agent's
+        honest status model plus the recent activity feed. Sent after the agent
+        state replay on webviewReady.
+      type: object
+      additionalProperties: false
+      required: [type, agents, activity, capturedAt]
+      properties:
+        type:
+          const: observationSnapshot
+        agents:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentObservation'
+        activity:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityEntry'
+        capturedAt:
+          type: number
+
+    AgentObservationUpdated:
+      description: Replacement observation for one agent (coalesced, ~120 ms).
+      type: object
+      additionalProperties: false
+      required: [type, agent]
+      properties:
+        type:
+          const: agentObservation
+        agent:
+          $ref: '#/components/schemas/AgentObservation'
+
+    AgentObservationRemoved:
+      description: The agent left the office (session ended, dismissed or orphaned).
+      type: object
+      additionalProperties: false
+      required: [type, id]
+      properties:
+        type:
+          const: agentObservationRemoved
+        id:
+          type: integer
+
+    ActivityEvent:
+      description: One new entry of the activity feed.
+      type: object
+      additionalProperties: false
+      required: [type, entry]
+      properties:
+        type:
+          const: activityEvent
+        entry:
+          $ref: '#/components/schemas/ActivityEntry'
+
+    AgentObservation:
+      description: |
+        What real events confirm about one agent. Null means the source did not
+        say — the UI shows "Unknown", never a guess. `status` has no leisure
+        value: free-time animation is drawn for idle / waiting_user agents only.
+      type: object
+      additionalProperties: false
+      required:
+        [id, source, sessionId, isExternal, channel, project, cwd, gitBranch, model, status,
+         activity, currentAction, lastAction, firstSeenAt, lastEventAt, subagents,
+         contextTokens, maxContextTokens, teamName, agentName, isTeamLead, leadAgentId]
+      properties:
+        id:
+          type: integer
+        source:
+          type: string
+        sessionId:
+          type: string
+        isExternal:
+          type: boolean
+        channel:
+          $ref: '#/components/schemas/ObservedChannel'
+        project:
+          type: [string, 'null']
+        cwd:
+          type: [string, 'null']
+        gitBranch:
+          type: [string, 'null']
+        model:
+          type: [string, 'null']
+        status:
+          $ref: '#/components/schemas/ObservedStatus'
+        activity:
+          oneOf:
+            - $ref: '#/components/schemas/ObservedActivity'
+            - type: 'null'
+        currentAction:
+          type: [string, 'null']
+        lastAction:
+          type: [string, 'null']
+        firstSeenAt:
+          type: number
+        lastEventAt:
+          type: [number, 'null']
+        subagents:
+          type: array
+          items:
+            $ref: '#/components/schemas/ObservedSubagent'
+        contextTokens:
+          type: [integer, 'null']
+        maxContextTokens:
+          type: [integer, 'null']
+        teamName:
+          type: [string, 'null']
+        agentName:
+          type: [string, 'null']
+        isTeamLead:
+          type: boolean
+        leadAgentId:
+          type: [integer, 'null']
+
+    ObservedChannel:
+      type: string
+      enum: [hooks, transcript]
+
+    ObservedStatus:
+      type: string
+      enum: [unknown, working, waiting_permission, waiting_user, idle]
+
+    ObservedActivity:
+      type: string
+      enum: [reading, searching, writing, running, browsing, delegating, planning, asking, other]
+
+    ObservedSubagent:
+      type: object
+      additionalProperties: false
+      required: [toolId, label]
+      properties:
+        toolId:
+          type: string
+        label:
+          type: string
+
+    ActivityKind:
+      type: string
+      enum: [joined, left, tool, permission, turnEnd, waitingInput, subagentStart, subagentEnd]
+
+    ActivityEntry:
+      type: object
+      additionalProperties: false
+      required: [seq, ts, agentId, kind, text]
+      properties:
+        seq:
+          type: integer
+        ts:
+          type: number
+        agentId:
+          type: integer
+        kind:
+          $ref: '#/components/schemas/ActivityKind'
+        text:
+          type: string
 
     LayoutLoaded:
       description: |
