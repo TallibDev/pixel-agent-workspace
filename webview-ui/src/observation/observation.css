@@ -1,0 +1,527 @@
+/* Observation HUD — dark, quiet panels that sit over the office. */
+:root {
+  --obs-panel: rgba(18, 14, 34, 0.82);
+  --obs-panel-solid: #15112a;
+  --obs-line: rgba(186, 160, 255, 0.16);
+  --obs-text: rgba(240, 236, 255, 0.92);
+  --obs-muted: rgba(220, 212, 255, 0.56);
+  --obs-faint: rgba(220, 212, 255, 0.36);
+  --obs-working: #5fd4ff;
+  --obs-waiting: #ffb547;
+  --obs-waiting-user: #ff8adf;
+  --obs-idle: #7be3a4;
+  --obs-unknown: #8f88a8;
+  --obs-radius: 8px;
+  --obs-font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+.obs-panel {
+  background: var(--obs-panel);
+  border: 1px solid var(--obs-line);
+  border-radius: var(--obs-radius);
+  color: var(--obs-text);
+  font-family: var(--obs-font);
+  box-shadow: 0 8px 28px rgba(5, 3, 14, 0.45);
+  backdrop-filter: blur(6px);
+}
+/* Upstream styles give some elements the pixel font; HUD text stays in the UI
+   font (inherit), except where a later rule (e.g. .obs-mono) sets its own. */
+.obs-panel *,
+.obs-replay-banner * {
+  font-family: inherit;
+}
+
+/* ── Summary bar ── */
+.obs-bar {
+  position: absolute;
+  top: 8px;
+  left: 56px;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  font-size: 14px;
+  line-height: 1;
+  user-select: none;
+  animation: obs-in 180ms ease-out;
+}
+.obs-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.obs-stat b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--obs-text);
+}
+.obs-stat span {
+  color: var(--obs-muted);
+}
+.obs-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--obs-line);
+  margin: 0 3px;
+}
+.obs-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.obs-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--obs-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.obs-btn:hover,
+.obs-btn[aria-pressed='true'] {
+  background: rgba(186, 160, 255, 0.12);
+  color: var(--obs-text);
+}
+.obs-btn:focus-visible {
+  outline: 2px solid var(--obs-working);
+  outline-offset: 1px;
+}
+.obs-channel {
+  color: var(--obs-faint);
+}
+
+/* ── Inspector (agent card) ── */
+.obs-card {
+  position: absolute;
+  top: 60px;
+  left: 56px;
+  z-index: 26;
+  width: 340px;
+  max-width: calc(100% - 112px);
+  padding: 16px 16px 14px;
+  font-size: 13px;
+  line-height: 1.4;
+  animation: obs-in 160ms ease-out;
+}
+.obs-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.obs-card-title {
+  flex: 1;
+  min-width: 0;
+}
+.obs-card-title h2 {
+  margin: 0 0 3px;
+  font-size: 16px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.obs-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--obs-muted);
+}
+.obs-close {
+  border: 0;
+  background: transparent;
+  color: var(--obs-muted);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.obs-close:hover {
+  color: var(--obs-text);
+  background: rgba(186, 160, 255, 0.12);
+}
+.obs-now {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(186, 160, 255, 0.07);
+  color: var(--obs-text);
+  overflow-wrap: anywhere;
+}
+.obs-now small {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--obs-faint);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.obs-fields {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 6px 12px;
+  margin: 0;
+}
+.obs-fields dt {
+  color: var(--obs-faint);
+}
+.obs-fields dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.obs-fields dd.obs-na {
+  color: var(--obs-faint);
+  font-style: italic;
+}
+.obs-mono {
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 12px;
+}
+.obs-gauge {
+  height: 4px;
+  margin-top: 4px;
+  border-radius: 2px;
+  background: rgba(186, 160, 255, 0.14);
+  overflow: hidden;
+}
+.obs-gauge i {
+  display: block;
+  height: 100%;
+  background: var(--obs-working);
+}
+.obs-note {
+  margin: 10px 0 0;
+  color: var(--obs-faint);
+  font-size: 12px;
+}
+
+/* ── Activity feed ── */
+.obs-feed {
+  position: absolute;
+  left: 56px;
+  bottom: 104px;
+  z-index: 24;
+  width: 380px;
+  max-width: calc(100% - 112px);
+  max-height: min(46%, 400px);
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  animation: obs-in 160ms ease-out;
+}
+.obs-feed header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--obs-line);
+  font-weight: 600;
+}
+.obs-feed ol {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0;
+  overflow-y: auto;
+}
+.obs-feed li {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  gap: 8px;
+  padding: 5px 12px;
+  line-height: 1.4;
+}
+.obs-feed li:hover {
+  background: rgba(186, 160, 255, 0.06);
+}
+.obs-feed time {
+  color: var(--obs-faint);
+  font-variant-numeric: tabular-nums;
+}
+.obs-feed .obs-who {
+  color: var(--obs-muted);
+  margin-right: 6px;
+}
+.obs-feed .obs-empty {
+  display: block;
+  padding: 14px 12px;
+  color: var(--obs-faint);
+}
+
+@keyframes obs-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .obs-bar,
+  .obs-card,
+  .obs-feed {
+    animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .obs-bar {
+    left: 8px;
+    right: 8px;
+    top: 8px;
+    overflow-x: auto;
+  }
+  .obs-card,
+  .obs-feed {
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: none;
+  }
+}
+
+/* ── Language switch, channel chip ── */
+.obs-lang {
+  display: flex;
+  gap: 1px;
+}
+.obs-lang .obs-btn {
+  padding: 8px 7px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.obs-channel.is-off {
+  color: var(--obs-waiting);
+}
+
+/* ── Side panels (hooks, history) ── */
+.obs-side {
+  position: absolute;
+  top: 64px;
+  right: 12px;
+  z-index: 27;
+  width: 380px;
+  max-width: calc(100% - 144px);
+  max-height: calc(100% - 140px);
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  line-height: 1.45;
+  animation: obs-in 160ms ease-out;
+}
+.obs-side header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--obs-line);
+  font-weight: 600;
+  font-size: 14px;
+}
+.obs-body {
+  padding: 12px 14px 14px;
+  overflow-y: auto;
+}
+.obs-body p {
+  margin: 0 0 10px;
+}
+.obs-facts {
+  margin: 0 0 14px;
+  padding-left: 18px;
+  color: var(--obs-muted);
+}
+.obs-facts li {
+  margin-bottom: 6px;
+}
+.obs-hint {
+  color: var(--obs-muted);
+}
+.obs-ok {
+  color: var(--obs-idle);
+}
+.obs-warn {
+  margin-top: 10px !important;
+  color: var(--obs-waiting);
+}
+.obs-primary {
+  padding: 9px 16px;
+  border: 0;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #8b6bff, #6a46f0);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(106, 70, 240, 0.35);
+}
+.obs-primary:hover {
+  filter: brightness(1.08);
+}
+.obs-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.obs-primary:focus-visible {
+  outline: 2px solid var(--obs-working);
+  outline-offset: 2px;
+}
+.obs-sessions {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0;
+  overflow-y: auto;
+}
+.obs-sessions li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+}
+.obs-sessions li:hover {
+  background: rgba(186, 160, 255, 0.06);
+}
+.obs-session-main {
+  flex: 1;
+  min-width: 0;
+}
+.obs-session-main b {
+  font-weight: 600;
+}
+.obs-session-main small {
+  display: block;
+  color: var(--obs-faint);
+  font-size: 12px;
+}
+.obs-live {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(123, 227, 164, 0.16);
+  color: var(--obs-idle);
+  font-size: 11px;
+}
+.obs-footnote {
+  margin: 0;
+  padding: 8px 14px 12px;
+  border-top: 1px solid var(--obs-line);
+}
+.obs-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ── Replay ── */
+.obs-replay-banner {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 32px);
+  padding: 6px 16px;
+  border-radius: 999px;
+  box-shadow: 0 6px 20px rgba(255, 122, 217, 0.35);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 122, 217, 0.92) 0 14px,
+    rgba(232, 92, 196, 0.92) 14px 28px
+  );
+  color: #1a0b22;
+  font-family: var(--obs-font);
+  font-size: 13px;
+  pointer-events: none;
+}
+.obs-replay-banner b {
+  letter-spacing: 0.12em;
+}
+.obs-replay-dim {
+  position: absolute;
+  inset: 0;
+  z-index: 23;
+  background: rgba(20, 6, 30, 0.45);
+  box-shadow: inset 0 0 0 3px rgba(255, 122, 217, 0.7);
+  pointer-events: none;
+}
+.obs-player {
+  position: absolute;
+  left: 50%;
+  bottom: 104px;
+  transform: translateX(-50%);
+  z-index: 41;
+  width: min(640px, calc(100% - 32px));
+  padding: 12px 14px;
+  font-size: 13px;
+  border-color: rgba(255, 122, 217, 0.45);
+}
+.obs-player-now {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 6px;
+  overflow-wrap: anywhere;
+}
+.obs-player-now time {
+  flex: none;
+  color: var(--obs-waiting-user);
+  font-variant-numeric: tabular-nums;
+}
+.obs-player-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 8px;
+  color: var(--obs-faint);
+}
+.obs-player input[type='range'] {
+  width: 100%;
+  accent-color: var(--obs-waiting-user);
+}
+.obs-player-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+}
+.obs-speed {
+  display: flex;
+  gap: 1px;
+  margin-left: 6px;
+}
+.obs-player-pos {
+  margin-left: auto;
+  color: var(--obs-faint);
+  font-variant-numeric: tabular-nums;
+}
+.obs-exit {
+  color: var(--obs-waiting-user);
+}
+
+@media (max-width: 640px) {
+  .obs-side {
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: none;
+  }
+}

@@ -21,6 +21,8 @@ import {
 import { collectDirectorySuggestions } from './directorySuggestions.js';
 import { hostDirectory } from './hostDirectory.js';
 import { readLayoutFromFile, writeLayoutToFile } from './layoutPersistence.js';
+import { resendObservation } from './observation/observationTracker.js';
+import { handleObservationMessage } from './observation/service.js';
 import type { ConsentEffects } from './providers/hook/consentExecutor.js';
 import { applyConsentChoice } from './providers/hook/consentExecutor.js';
 import { hooksConsentRequest } from './providers/hook/consentGate.js';
@@ -132,6 +134,9 @@ export function handleClientMessage(
     refuseReadOnly(msg, send, ctx);
     return;
   }
+
+  // Pixel Agent Workspace: history reads (privileged, read-only on agents).
+  if (handleObservationMessage(msg, send, store)) return;
 
   switch (msg.type) {
     case 'webviewReady':
@@ -626,6 +631,7 @@ function handleWebviewReady(send: WsSend, ctx: ClientMessageContext): void {
   // exist once the layout flush creates them. Without this a reconnecting
   // client shows bare characters until each agent takes another turn.
   resendAgentActivity(send, store);
+  resendObservation(send, store);
 
   // 9. Re-announce live terminals AFTER existingAgents, so a browser that
   // reloaded (or a second tab) rebuilds its drawer tabs. The PTY outlives the

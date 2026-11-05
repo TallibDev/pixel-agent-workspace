@@ -560,3 +560,27 @@ export const VISUAL_VIEWPORT_FULL_EPSILON_PX = 1;
  *  (with an editable focused) = the software keyboard is up. Well above an
  *  address bar collapsing (~56 px), well below any on-screen keyboard. */
 export const KEYBOARD_MIN_HEIGHT_PX = 150;
+
+// ── Pixel Agent Workspace: night lighting palette (office/life/lighting.ts) ──
+export const NIGHT_AMBIENT = 'rgba(16, 9, 34, 0.62)';
+export const LIGHT_COLOR = {
+  deskLamp: '#ffb455',
+  floorLamp: '#ffbe66',
+  neon: '#ff4fd8',
+  window: '#6a6cff',
+  monitorOn: '#5fd4ff',
+  monitorIdle: '#3f8fd0',
+  coffeeMachine: '#ff9f6a',
+  fridge: '#bfe8ff',
+  person: '#ffe7c4',
+  sun: '#fff1c8',
+  daylight: '#fff4dc',
+  dusk: '#ff9a6a',
+} as const;
+/** Darkness mask stop: how much of the night a light removes. */
+export const lightHoleColor = (alpha: number): string => `rgba(0,0,0,${alpha})`;
+/** `#rrggbb` + alpha → rgba() for additive glows. */
+export const lightRgba = (hex: string, alpha: number): string => {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha.toFixed(3)})`;
+};

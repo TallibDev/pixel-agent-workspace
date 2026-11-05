@@ -11,6 +11,7 @@ import {
   WANDER_PAUSE_MIN_SEC,
 } from '../../constants.js';
 import { findPath } from '../layout/tileMap.js';
+import type { LeisureCharacter, LeisureSpot } from '../life/leisure.js';
 import type { CharacterSprites } from '../sprites/spriteData.js';
 import { isReadingToolName } from '../toolUtils.js';
 import type { Character, Seat, SpriteData, TileType as TileTypeVal } from '../types.js';
@@ -89,6 +90,14 @@ export function createCharacter(
   };
 }
 
+/** Pixel Agent Workspace free-time hooks (office/life/leisure.ts). Optional:
+ *  without them the upstream random wander runs unchanged. */
+export interface LeisureHooks {
+  pick(ch: Character): LeisureSpot | null;
+  arrive(ch: Character): void;
+  release(ch: Character): void;
+}
+
 export function updateCharacter(
   ch: Character,
   dt: number,
@@ -96,12 +105,27 @@ export function updateCharacter(
   seats: Map<string, Seat>,
   tileMap: TileTypeVal[][],
   blockedTiles: Set<string>,
+  leisure?: LeisureHooks,
 ): void {
   ch.frameTimer += dt;
+  const lc = ch as LeisureCharacter;
+  // Real work always wins over a pastime: drop it the moment the agent is active.
+  if (ch.isActive && lc.leisure) {
+    lc.leisure = null;
+    leisure?.release(ch);
+    if (ch.state === CharacterState.TYPE) {
+      ch.state = CharacterState.IDLE;
+      ch.frame = 0;
+      ch.frameTimer = 0;
+    }
+  }
 
   switch (ch.state) {
     case CharacterState.TYPE: {
-      if (ch.frameTimer >= TYPE_FRAME_DURATION_SEC) {
+      if (lc.leisure?.sit) {
+        // Sitting on a sofa: a still pose, never the typing loop.
+        ch.frame = 0;
+      } else if (ch.frameTimer >= TYPE_FRAME_DURATION_SEC) {
         ch.frameTimer -= TYPE_FRAME_DURATION_SEC;
         ch.frame = (ch.frame + 1) % 2;
       }
@@ -112,6 +136,10 @@ export function updateCharacter(
           break;
         }
         ch.seatTimer = 0; // clear sentinel
+        if (lc.leisure?.sit) {
+          lc.leisure = null;
+          leisure?.release(ch);
+        }
         ch.state = CharacterState.IDLE;
         ch.frame = 0;
         ch.frameTimer = 0;
@@ -187,7 +215,11 @@ export function updateCharacter(
           }
         }
         if (walkableTiles.length > 0) {
-          const target = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+          lc.leisure = null;
+          const spot = leisure?.pick(ch) ?? null;
+          const target = spot ?? walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+          // Sofa seats are furniture tiles: open the one we head for while pathing.
+          const reopened = spot?.seatKey ? blockedTiles.delete(spot.seatKey) : false;
           const path = findPath(
             ch.tileCol,
             ch.tileRow,
@@ -196,6 +228,7 @@ export function updateCharacter(
             tileMap,
             blockedTiles,
           );
+          if (reopened && spot?.seatKey) blockedTiles.add(spot.seatKey);
           if (path.length > 0) {
             ch.path = path;
             ch.moveProgress = 0;
@@ -203,6 +236,17 @@ export function updateCharacter(
             ch.frame = 0;
             ch.frameTimer = 0;
             ch.wanderCount++;
+            if (spot) {
+              lc.leisure = {
+                activity: spot.activity,
+                face: spot.face,
+                sit: spot.seatKey !== undefined,
+                partnerId: spot.partnerId,
+                arrived: false,
+              };
+            }
+          } else if (spot) {
+            leisure?.release(ch);
           }
         }
         ch.wanderTimer = randomRange(WANDER_PAUSE_MIN_SEC, WANDER_PAUSE_MAX_SEC);
@@ -262,6 +306,7 @@ export function updateCharacter(
           }
           ch.state = CharacterState.IDLE;
           ch.wanderTimer = randomRange(WANDER_PAUSE_MIN_SEC, WANDER_PAUSE_MAX_SEC);
+          if (lc.leisure && !lc.leisure.arrived) leisure?.arrive(ch);
         }
         ch.frame = 0;
         ch.frameTimer = 0;
@@ -320,6 +365,9 @@ export function updateCharacter(
 export function getCharacterSprite(ch: Character, sprites: CharacterSprites): SpriteData {
   switch (ch.state) {
     case CharacterState.TYPE:
+      if ((ch as LeisureCharacter).leisure?.sit) {
+        return sprites.reading[ch.dir][0];
+      }
       if (isReadingTool(ch.currentTool)) {
         return sprites.reading[ch.dir][ch.frame % 2];
       }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import type { Directory } from '../hooks/useExtensionMessages.js';
+import { useT } from '../i18n/index.js';
 import { isBrowserRuntime } from '../runtime.js';
 import { transport } from '../transport/index.js';
 import { LaunchDrawer } from './LaunchDrawer.js';
@@ -33,6 +34,7 @@ export function BottomToolbar({
   terminalAvailable,
   terminalUnavailableReason,
 }: BottomToolbarProps) {
+  const t = useT();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const launchRef = useRef<HTMLDivElement>(null);
 
@@ -114,16 +116,16 @@ export function BottomToolbar({
       <Button
         variant={isEditMode ? 'active' : 'default'}
         onClick={onToggleEditMode}
-        title="Edit office layout"
+        title={t('toolbar.layoutTitle')}
       >
-        Layout
+        {t('toolbar.layout')}
       </Button>
       <Button
         variant={isSettingsOpen ? 'active' : 'default'}
         onClick={onToggleSettings}
-        title="Settings"
+        title={t('toolbar.settingsTitle')}
       >
-        Settings
+        {t('toolbar.settings')}
       </Button>
     </div>
   );

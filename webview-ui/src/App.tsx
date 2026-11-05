@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import { toMajorMinor } from './changelogData.js';
-import { AgentCardBar } from './components/AgentCardBar.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { ChangelogModal } from './components/ChangelogModal.js';
 import { ConnectionIndicator } from './components/ConnectionIndicator.js';
@@ -27,8 +26,10 @@ import { useIntroTour } from './hooks/useIntroTour.js';
 import { useIsMobile } from './hooks/useIsMobile.js';
 import { useKeyboardViewport } from './hooks/useKeyboardViewport.js';
 import { useTerminalDrawer } from './hooks/useTerminalDrawer.js';
+import { useT } from './i18n/index.js';
 import { MobileShell } from './mobile/MobileShell.js';
 import { useMobileShell } from './mobile/useMobileShell.js';
+import { ObservationHud } from './observation/ObservationHud.js';
 import { OfficeCanvas } from './office/components/OfficeCanvas.js';
 import { ToolOverlay } from './office/components/ToolOverlay.js';
 import { EditorState } from './office/editor/editorState.js';
@@ -43,6 +44,10 @@ import { EditTool, type OfficeLayout, TILE_SIZE } from './office/types.js';
 import { isBrowserRuntime, isE2E } from './runtime.js';
 import { installTestHooks } from './testHooks.js';
 import { transport } from './transport/index.js';
+import { AgentStrip } from './workspace/AgentStrip.js';
+import { RightPanels } from './workspace/RightPanels.js';
+import { Sidebar } from './workspace/Sidebar.js';
+import { TopBar } from './workspace/TopBar.js';
 
 // Game state lives outside React — updated imperatively by message handlers
 const officeStateRef = { current: null as OfficeState | null };
@@ -151,6 +156,11 @@ function App() {
     () => getOfficeState().selectedAgentId,
   );
 
+  const t = useT();
+  const closeAgentCard = useCallback(() => {
+    getOfficeState().selectedAgentId = null;
+  }, []);
+
   // Standalone only: every input here stays false/empty under VS Code. Owns the
   // active tab on both shells; the desktop-only bits (isOpen, width, resize)
   // are simply unread on mobile, where the sliding track plays the drawer.
@@ -234,6 +244,19 @@ function App() {
   // The Settings surface renders one provider today; its checkbox binds to
   // the Claude row of the per-provider install-state map.
   const claudeHooksInstalled = hooksInstalled['claude'] === true;
+  // Pixel Agent Workspace hooks wizard: the actual install state (undefined until
+  // the server reports the claude row) and the same setHooksEnabled the Settings
+  // toggle sends. The click in the wizard, after its disclosure, is the consent.
+  const hooksControl = useMemo(
+    () => ({
+      installed: 'claude' in hooksInstalled ? hooksInstalled['claude'] === true : undefined,
+      onInstall: () => {
+        if (!('claude' in hooksInstalled)) return;
+        transport.send({ type: 'setHooksEnabled', providerId: 'claude', enabled: true });
+      },
+    }),
+    [hooksInstalled],
+  );
 
   // Mutate Directory→Area mappings locally + send to server. Updates OfficeState in
   // the same tick so a follow-up agentCreated picks up the new mapping.
@@ -498,6 +521,17 @@ function App() {
                 jobs move to the card bar (+) and the floating Settings button. */}
           {!isMobile && <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />}
 
+          {/* Pixel Agent Workspace: observation summary, agent card, activity feed */}
+          {!editor.isEditMode && (
+            <ObservationHud
+              selectedAgentId={focusedAgentId}
+              onCloseCard={closeAgentCard}
+              readOnly={officeReadOnly}
+              hooks={hooksControl}
+              desktopShell={!isMobile}
+            />
+          )}
+
           {/* Vignette overlay */}
           <div
             className="absolute inset-0 pointer-events-none"
@@ -624,24 +658,24 @@ function App() {
 
       {officeReadOnly && (
         <div className="absolute mobile-safe-top left-1/2 -translate-x-1/2 z-10 text-sm text-text-muted pointer-events-none select-none whitespace-nowrap">
-          View only
+          {t('chrome.viewOnly')}
         </div>
       )}
 
-      {/* A read-only office gets no toolbar: launching, layout editing and every
-          setting would be refused by the server anyway. */}
-      {!isMobile && !officeReadOnly && (
-        <BottomToolbar
-          isEditMode={editor.isEditMode}
-          onToggleEditMode={editor.handleToggleEditMode}
-          isSettingsOpen={isSettingsOpen}
-          onToggleSettings={() => setIsSettingsOpen((v) => !v)}
-          directories={directories}
-          onAddDirectory={directoryEditor.add}
-          onEditDirectory={directoryEditor.edit}
-          terminalAvailable={terminalAvailable}
-          terminalUnavailableReason={terminalUnavailableReason}
-        />
+      {/* Desktop: the upstream toolbar now lives in the sidebar (see `tools`). */}
+
+      {/* Pixel Agent Workspace: top bar and the agent card strip (desktop). */}
+      {!isMobile && !isDebugMode && !editor.isEditMode && (
+        <>
+          <TopBar onFocusAgent={handleCardSelect} />
+          <AgentStrip
+            focusedAgentId={focusedAgentId}
+            onSelect={handleCardSelect}
+            getAppearance={(id) =>
+              getOfficeState().characters.has(id) ? terminalDrawer.getAppearance(id) : null
+            }
+          />
+        </>
       )}
 
       {/* Mobile: Settings floats top-left (the layout editor stays desktop-
@@ -721,18 +755,47 @@ function App() {
         />
       ) : (
         <>
+          {!isDebugMode && (
+            <Sidebar
+              tools={
+                officeReadOnly ? null : (
+                  <BottomToolbar
+                    isEditMode={editor.isEditMode}
+                    onToggleEditMode={editor.handleToggleEditMode}
+                    isSettingsOpen={isSettingsOpen}
+                    onToggleSettings={() => setIsSettingsOpen((v) => !v)}
+                    directories={directories}
+                    onAddDirectory={directoryEditor.add}
+                    onEditDirectory={directoryEditor.edit}
+                    terminalAvailable={terminalAvailable}
+                    terminalUnavailableReason={terminalUnavailableReason}
+                  />
+                )
+              }
+              terminalAvailable={terminalAvailable}
+              terminalOpen={terminalAvailable && terminalDrawer.isOpen}
+              onOpenTerminal={() => {
+                const target =
+                  focusedAgentId !== null && terminalAgentIds.includes(focusedAgentId)
+                    ? focusedAgentId
+                    : terminalAgentIds[0];
+                if (target !== undefined) terminalDrawer.select(target);
+              }}
+              hooksOn={hooksControl.installed === true}
+            />
+          )}
           {officeRegion}
+          {!isDebugMode && <RightPanels onFocusAgent={handleCardSelect} />}
 
           {/* Standalone with a terminal: terminalAvailable is only ever true when
               the server reports a working PTY to a tokened session, which VS
               Code's surface never does. In flow as a flex sibling so the office
               region reflows beside it instead of being overlaid.
 
-              Otherwise (VS Code, or a watch-only standalone session) the card
-              bar stands alone with every agent in the office, external sessions
-              included — the at-a-glance "who needs attention" strip, with a
-              click raising the agent's editor terminal where there is one. */}
-          {terminalAvailable ? (
+              Otherwise the Pixel Agent Workspace agent strip (bottom of the
+              office) is the at-a-glance "who needs attention" row; dismissing an
+              agent stays on the character's overlay (×). */}
+          {terminalAvailable && (
             <TerminalDrawer
               agentIds={terminalAgentIds}
               shownAgentId={terminalDrawer.shownAgentId}
@@ -746,17 +809,6 @@ function App() {
               statusFor={terminalDrawer.statusFor}
               onStatusChange={terminalDrawer.onStatusChange}
             />
-          ) : (
-            !isDebugMode && (
-              <AgentCardBar
-                agentIds={agents}
-                focusedAgentId={focusedAgentId}
-                getAppearance={terminalDrawer.getAppearance}
-                statusFor={terminalDrawer.statusFor}
-                onSelect={handleCardSelect}
-                onClose={handleCloseAgent}
-              />
-            )
           )}
         </>
       )}
@@ -768,31 +820,26 @@ function App() {
       <Modal
         isOpen={isHooksInfoOpen}
         onClose={() => setIsHooksInfoOpen(false)}
-        title="Instant Detection is ON"
+        title={t('hooksInfo.title')}
         zIndex={52}
       >
         <div className="text-base text-text px-10" style={{ lineHeight: 1.4 }}>
-          <p className="mb-8">Your Pixel Agents office now reacts in real-time:</p>
+          <p className="mb-8">{t('hooksInfo.intro')}</p>
           <ul className="mb-8 pl-18 list-disc m-0">
-            <li className="text-sm mb-2">Permission prompts appear instantly</li>
-            <li className="text-sm mb-2">Turn completions detected the moment they happen</li>
-            <li className="text-sm mb-2">Sound notifications play immediately</li>
+            <li className="text-sm mb-2">{t('hooksInfo.permission')}</li>
+            <li className="text-sm mb-2">{t('hooksInfo.turns')}</li>
+            <li className="text-sm mb-2">{t('hooksInfo.sound')}</li>
           </ul>
-          <p className="mb-12 text-text-muted">
-            This works through Claude Code Hooks, small event listeners that notify Pixel Agents
-            whenever something happens in your Claude sessions.
-          </p>
+          <p className="mb-12 text-text-muted">{t('hooksInfo.how')}</p>
           <div className="text-center">
             <button
               onClick={() => setIsHooksInfoOpen(false)}
               className="py-4 px-20 text-lg bg-accent text-white border-2 border-accent rounded-none cursor-pointer shadow-pixel"
             >
-              Got it
+              {t('hooksInfo.ok')}
             </button>
           </div>
-          <p className="mt-8 text-xs text-text-muted text-center">
-            To disable, go to Settings {'>'} Instant Detection
-          </p>
+          <p className="mt-8 text-xs text-text-muted text-center">{t('hooksInfo.disable')}</p>
         </div>
       </Modal>
       {/* Rendered at the composition root, not inside a launch surface: the

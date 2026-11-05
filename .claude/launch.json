@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "standalone-observe",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": ["dist/cli.js", "--port", "3100", "--host", "127.0.0.1", "--no-terminal"],
+      "port": 3100
+    }
+  ]
+}

@@ -25,6 +25,13 @@ export type ServerMessage =
   | SubagentToolPermission
   | AgentTeamInfo
   | AgentContextUsage
+  | ObservationSnapshot
+  | AgentObservationUpdated
+  | AgentObservationRemoved
+  | ActivityEvent
+  | HistorySessions
+  | SessionHistory
+  | HistoryUnavailable
   | LayoutLoaded
   | FurnitureAssetsLoaded
   | CharacterSpritesLoaded
@@ -75,7 +82,9 @@ export type ClientMessage =
   | SaveDirectory
   | RemoveDirectory
   | RequestDirectorySuggestions
-  | RequestDiagnostics;
+  | RequestDiagnostics
+  | RequestHistorySessions
+  | RequestSessionHistory;
 
 export interface ProviderCapabilities {
   type: 'providerCapabilities';
@@ -199,6 +208,128 @@ export interface AgentContextUsage {
   id: number;
   contextTokens: number;
   maxContextTokens: number;
+}
+
+export interface ObservationSnapshot {
+  type: 'observationSnapshot';
+  agents: AgentObservation[];
+  activity: ActivityEntry[];
+  capturedAt: number;
+}
+
+export interface AgentObservation {
+  id: number;
+  source: string;
+  sessionId: string;
+  isExternal: boolean;
+  channel: ObservedChannel;
+  project: string | null;
+  cwd: string | null;
+  gitBranch: string | null;
+  model: string | null;
+  status: ObservedStatus;
+  activity: ObservedActivity | null;
+  currentAction: string | null;
+  lastAction: string | null;
+  firstSeenAt: number;
+  lastEventAt: number | null;
+  subagents: ObservedSubagent[];
+  contextTokens: number | null;
+  maxContextTokens: number | null;
+  teamName: string | null;
+  agentName: string | null;
+  isTeamLead: boolean;
+  leadAgentId: number | null;
+}
+
+export type ObservedChannel = 'hooks' | 'transcript';
+
+export type ObservedStatus = 'unknown' | 'working' | 'waiting_permission' | 'waiting_user' | 'idle';
+
+export type ObservedActivity =
+  | 'reading'
+  | 'searching'
+  | 'writing'
+  | 'running'
+  | 'browsing'
+  | 'delegating'
+  | 'planning'
+  | 'asking'
+  | 'other';
+
+export interface ObservedSubagent {
+  toolId: string;
+  label: string;
+}
+
+export interface ActivityEntry {
+  seq: number;
+  ts: number;
+  agentId: number;
+  kind: ActivityKind;
+  text: string;
+}
+
+export type ActivityKind =
+  | 'joined'
+  | 'left'
+  | 'tool'
+  | 'permission'
+  | 'turnEnd'
+  | 'waitingInput'
+  | 'subagentStart'
+  | 'subagentEnd';
+
+export interface AgentObservationUpdated {
+  type: 'agentObservation';
+  agent: AgentObservation;
+}
+
+export interface AgentObservationRemoved {
+  type: 'agentObservationRemoved';
+  id: number;
+}
+
+export interface ActivityEvent {
+  type: 'activityEvent';
+  entry: ActivityEntry;
+}
+
+export interface HistorySessions {
+  type: 'historySessions';
+  sessions: HistorySession[];
+}
+
+export interface HistorySession {
+  sessionId: string;
+  source: string;
+  project: string | null;
+  firstTs: number;
+  lastTs: number;
+  events: number;
+  live: boolean;
+}
+
+export interface SessionHistory {
+  type: 'sessionHistory';
+  sessionId: string;
+  entries: HistoryEntry[];
+  truncated: boolean;
+}
+
+export interface HistoryEntry {
+  ts: number;
+  kind: ActivityKind;
+  text: string;
+  agentId: number;
+  sessionId: string;
+  source: string;
+  project: string | null;
+}
+
+export interface HistoryUnavailable {
+  type: 'historyUnavailable';
+  reason: string;
 }
 
 export interface LayoutLoaded {
@@ -514,4 +645,13 @@ export interface RequestDirectorySuggestions {
 
 export interface RequestDiagnostics {
   type: 'requestDiagnostics';
+}
+
+export interface RequestHistorySessions {
+  type: 'requestHistorySessions';
+}
+
+export interface RequestSessionHistory {
+  type: 'requestSessionHistory';
+  sessionId: string;
 }

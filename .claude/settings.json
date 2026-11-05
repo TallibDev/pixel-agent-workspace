@@ -1,0 +1,18 @@
+{
+  "extraKnownMarketplaces": {
+    "claude-plugins-official": {
+      "source": { "source": "github", "repo": "anthropics/claude-plugins-official" }
+    },
+    "impeccable": {
+      "source": { "source": "github", "repo": "pbakaus/impeccable" }
+    }
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true,
+    "impeccable@impeccable": true
+  },
+  "env": {
+    "IMPECCABLE_LIVE_COPY_AGENT": "off",
+    "SUPERPOWERS_DISABLE_TELEMETRY": "1"
+  }
+}
