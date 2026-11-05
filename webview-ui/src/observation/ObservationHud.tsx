@@ -19,6 +19,7 @@ import {
   useLanguage,
   useT,
 } from '../i18n/index.js';
+import { setPanel, togglePanel, usePanel } from '../workspace/uiStore.js';
 import { entryText } from './entryText.js';
 import { agentLabel, countStatuses } from './observationStore.js';
 import { delayToNext, REPLAY_SPEEDS, statusAt } from './replay.js';
@@ -38,8 +39,6 @@ const SOURCE_LABEL: Record<string, string> = {
   codex: 'Codex',
 };
 
-type Panel = 'feed' | 'history' | 'hooks' | null;
-
 export interface HooksControl {
   /** Actual install state; undefined until the server reported it. */
   installed: boolean | undefined;
@@ -51,14 +50,22 @@ interface Props {
   onCloseCard: () => void;
   readOnly: boolean;
   hooks: HooksControl;
+  /** Desktop workspace shell: the sidebar, top bar and right column replace the summary bar. */
+  desktopShell?: boolean;
 }
 
 /** Summary bar, agent card, activity feed, hooks wizard, history and replay over the office. */
-export function ObservationHud({ selectedAgentId, onCloseCard, readOnly, hooks }: Props) {
+export function ObservationHud({
+  selectedAgentId,
+  onCloseCard,
+  readOnly,
+  hooks,
+  desktopShell = false,
+}: Props) {
   const t = useT();
   const lang = useLanguage();
   const { agents, feed, synced } = useObservation();
-  const [panel, setPanel] = useState<Panel>(null);
+  const panel = usePanel();
   const history = useHistory(panel === 'history', readOnly);
   const counts = useMemo(() => countStatuses(agents.values()), [agents]);
   const selected = selectedAgentId !== null ? agents.get(selectedAgentId) : undefined;
@@ -76,65 +83,67 @@ export function ObservationHud({ selectedAgentId, onCloseCard, readOnly, hooks }
     return () => window.removeEventListener('keydown', onKey);
   }, [selected, onCloseCard, panel]);
 
-  const toggle = (p: Exclude<Panel, null>) => setPanel((cur) => (cur === p ? null : p));
+  const toggle = togglePanel;
   const n = (v: number) => (synced ? String(v) : '–');
   const fallback = (id: number) => t('card.agentFallback', { id });
 
   return (
     <>
-      <div className="obs-panel obs-bar" role="status" aria-label={t('bar.aria')}>
-        <div className="obs-stat" title={t('bar.agentsTitle')}>
-          <b>{n(counts.detected)}</b>
-          <span>
-            {synced
-              ? t(`bar.agents.${pluralForm(lang, counts.detected)}` as const)
-              : t('bar.agents')}
-          </span>
-        </div>
-        <div className="obs-sep" />
-        <Stat color={STATUS_COLOR.working} value={n(counts.working)} label={t('bar.working')} />
-        <Stat
-          color={STATUS_COLOR.waiting_permission}
-          value={n(counts.waiting)}
-          label={t('bar.waiting')}
-        />
-        <Stat color={STATUS_COLOR.idle} value={n(counts.idle)} label={t('bar.idle')} />
-        {counts.unknown > 0 && (
-          <Stat color={STATUS_COLOR.unknown} value={n(counts.unknown)} label={t('bar.unknown')} />
-        )}
-        <div className="obs-sep" />
-        <button
-          type="button"
-          className="obs-btn"
-          aria-pressed={panel === 'feed'}
-          onClick={() => toggle('feed')}
-        >
-          {t('bar.activity')}
-        </button>
-        <button
-          type="button"
-          className="obs-btn"
-          aria-pressed={panel === 'history'}
-          onClick={() => toggle('history')}
-        >
-          {t('bar.history')}
-        </button>
-        <button
-          type="button"
-          className={`obs-btn obs-channel ${hooksOn ? 'is-on' : 'is-off'}`}
-          aria-pressed={panel === 'hooks'}
-          title={hooksOn ? t('bar.hooksTitle') : t('bar.transcriptsTitle')}
-          onClick={() => toggle('hooks')}
-        >
-          <i
-            className="obs-dot"
-            style={{ background: hooksOn ? 'var(--obs-idle)' : 'var(--obs-waiting)' }}
+      {!desktopShell && (
+        <div className="obs-panel obs-bar" role="status" aria-label={t('bar.aria')}>
+          <div className="obs-stat" title={t('bar.agentsTitle')}>
+            <b>{n(counts.detected)}</b>
+            <span>
+              {synced
+                ? t(`bar.agents.${pluralForm(lang, counts.detected)}` as const)
+                : t('bar.agents')}
+            </span>
+          </div>
+          <div className="obs-sep" />
+          <Stat color={STATUS_COLOR.working} value={n(counts.working)} label={t('bar.working')} />
+          <Stat
+            color={STATUS_COLOR.waiting_permission}
+            value={n(counts.waiting)}
+            label={t('bar.waiting')}
           />
-          {hooksOn ? t('bar.hooks') : t('bar.transcripts')}
-        </button>
-        <div className="obs-sep" />
-        <LanguageSwitch lang={lang} t={t} />
-      </div>
+          <Stat color={STATUS_COLOR.idle} value={n(counts.idle)} label={t('bar.idle')} />
+          {counts.unknown > 0 && (
+            <Stat color={STATUS_COLOR.unknown} value={n(counts.unknown)} label={t('bar.unknown')} />
+          )}
+          <div className="obs-sep" />
+          <button
+            type="button"
+            className="obs-btn"
+            aria-pressed={panel === 'feed'}
+            onClick={() => toggle('feed')}
+          >
+            {t('bar.activity')}
+          </button>
+          <button
+            type="button"
+            className="obs-btn"
+            aria-pressed={panel === 'history'}
+            onClick={() => toggle('history')}
+          >
+            {t('bar.history')}
+          </button>
+          <button
+            type="button"
+            className={`obs-btn obs-channel ${hooksOn ? 'is-on' : 'is-off'}`}
+            aria-pressed={panel === 'hooks'}
+            title={hooksOn ? t('bar.hooksTitle') : t('bar.transcriptsTitle')}
+            onClick={() => toggle('hooks')}
+          >
+            <i
+              className="obs-dot"
+              style={{ background: hooksOn ? 'var(--obs-idle)' : 'var(--obs-waiting)' }}
+            />
+            {hooksOn ? t('bar.hooks') : t('bar.transcripts')}
+          </button>
+          <div className="obs-sep" />
+          <LanguageSwitch lang={lang} t={t} />
+        </div>
+      )}
 
       {replaying && history.recording && (
         <ReplayPlayer

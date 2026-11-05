@@ -193,6 +193,67 @@ function drawWindow(seed) {
   return s;
 }
 
+// ── The same window by day: blue sky, clouds, sun, a daytime skyline ─────
+function drawWindowDay(seed) {
+  const s = new Sprite(32, 32);
+  const r = rng(seed);
+  const sky = ['#6fb7ff', '#7cc2ff', '#8fcdff', '#a6d9ff', '#bfe4ff', '#d4ecff'];
+  for (let y = 2; y <= 26; y++) {
+    s.hline(2, 29, y, sky[Math.min(sky.length - 1, Math.floor(((y - 2) / 25) * sky.length))]);
+  }
+  // Sun and clouds
+  s.rect(22, 4, 4, 4, '#fff3b0');
+  s.rect(23, 3, 2, 6, '#fff3b0');
+  s.rect(21, 5, 6, 2, '#fff3b0');
+  for (const [cx, cy, w] of [
+    [5, 6, 6],
+    [12, 9, 5],
+    [3, 11, 4],
+  ]) {
+    s.rect(cx, cy, w, 2, '#ffffff');
+    s.rect(cx + 1, cy - 1, w - 2, 1, '#ffffff');
+    s.hline(cx, cx + w - 1, cy + 2, '#e3f1ff');
+  }
+  // Skyline (same rhythm as the night window, daytime colours)
+  let x = 2;
+  while (x <= 29) {
+    const bw = 2 + Math.floor(r() * 3);
+    const bh = 6 + Math.floor(r() * 7);
+    s.rect(x, 27 - bh, bw, bh, '#9bb3d6');
+    x += bw;
+  }
+  x = 2;
+  while (x <= 29) {
+    const bw = 3 + Math.floor(r() * 4);
+    const bh = 5 + Math.floor(r() * 10);
+    const top = 27 - bh;
+    const body = r() < 0.5 ? '#6f86ad' : '#7d93b8';
+    s.rect(x, top, Math.min(bw, 30 - x), bh, body);
+    s.vline(Math.min(x + bw - 1, 29), top, 26, '#5d7299');
+    for (let wy = top + 2; wy < 26; wy += 2) {
+      for (let wx = x + 1; wx < Math.min(x + bw - 1, 29); wx += 2) {
+        if (r() < 0.55) s.set(wx, wy, '#c9e6ff');
+      }
+    }
+    x += bw;
+  }
+  // Frame identical to the night window
+  s.outlineRect(0, 0, 32, 30, C.out);
+  s.outlineRect(1, 1, 30, 28, C.wood1);
+  s.hline(2, 29, 1, C.wood2);
+  s.vline(15, 2, 26, C.wood1);
+  s.vline(16, 2, 26, C.wood0);
+  s.hline(2, 29, 14, C.wood1);
+  s.hline(2, 29, 15, C.wood0);
+  s.rect(0, 27, 32, 3, C.wood1);
+  s.hline(0, 31, 27, C.sill);
+  s.hline(0, 31, 30, C.out);
+  s.hline(1, 30, 31, C.wood0);
+  s.set(4, 4, '#ffffff');
+  s.set(5, 3, '#ffffff');
+  return s;
+}
+
 // ── Neon sign: a coffee cup with steam (wall, 2×1 tiles) ─────────────────
 function drawNeonSign() {
   // Drawn on a 32×32 canvas (2×2 wall footprint, like upstream wall decor) with
@@ -399,6 +460,132 @@ function drawCounter() {
   return s;
 }
 
+// ── Dual monitor with keyboard (on desks, 2×2, top row walk-behind) ──────
+/** frame: -1 = off, 0..2 = on (scrolling code). */
+function drawDualMonitor(frame) {
+  const s = new Sprite(32, 32);
+  const r = rng(11 + Math.max(0, frame));
+  const screen = (x0) => {
+    s.rect(x0, 3, 13, 10, C.out);
+    s.rect(x0 + 1, 4, 11, 8, frame < 0 ? '#151229' : '#0f1830');
+    if (frame >= 0) {
+      const colors = ['#7fe3ff', '#b694ff', '#6cffb0', '#ffd27a'];
+      for (let row = 0; row < 4; row++) {
+        const y = 5 + row * 2;
+        const indent = Math.floor(r() * 3);
+        const len = 3 + Math.floor(r() * 6);
+        for (let x = 0; x < len && x0 + 2 + indent + x < x0 + 11; x++) {
+          s.set(x0 + 2 + indent + x, y, colors[(row + frame + x0) % colors.length]);
+        }
+      }
+    } else {
+      s.set(x0 + 3, 5, '#2a2550');
+      s.set(x0 + 4, 5, '#2a2550');
+    }
+    s.rect(x0 + 5, 13, 3, 2, C.chrome0); // stand
+  };
+  screen(2);
+  screen(17);
+  s.rect(4, 15, 24, 1, C.chrome0); // shared base
+  // Keyboard and mouse
+  s.rect(9, 20, 14, 4, '#3b3556');
+  s.rect(10, 21, 12, 2, '#58517a');
+  for (let x = 10; x < 22; x += 2) s.set(x, 21, '#8a83ad');
+  s.outlineRect(8, 19, 16, 6, C.out);
+  s.rect(25, 21, 2, 3, '#58517a');
+  s.set(25, 20, C.out);
+  s.set(26, 20, C.out);
+  // Under-glow on the desk when on (cyan) — drawn faintly
+  if (frame >= 0) {
+    s.hline(6, 12, 16, '#2c5e7a');
+    s.hline(19, 27, 16, '#3d2c7a');
+  }
+  return s;
+}
+
+// ── Neon cat (wall, 2×2) ─────────────────────────────────────────────────
+function drawNeonCat() {
+  const s = new Sprite(32, 32);
+  const M = C.neonM;
+  const core = C.neonMcore;
+  const halo = C.neonMhalo;
+  const pts = [];
+  // Head outline with ears
+  for (let x = 9; x <= 22; x++) pts.push([x, 22]);
+  for (let y = 12; y <= 21; y++) pts.push([8, y], [23, y]);
+  pts.push([9, 11], [10, 10], [11, 9], [12, 10], [13, 11]);
+  for (let x = 14; x <= 17; x++) pts.push([x, 12]);
+  pts.push([18, 11], [19, 10], [20, 9], [21, 10], [22, 11]);
+  for (const [x, y] of pts) {
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ])
+      s.set(x + dx, y + dy, halo);
+  }
+  for (const [x, y] of pts) s.set(x, y, M);
+  pts.filter((_, i) => i % 4 === 0).forEach(([x, y]) => s.set(x, y, core));
+  // Eyes, nose, whiskers
+  s.rect(12, 15, 2, 2, C.neonC);
+  s.rect(18, 15, 2, 2, C.neonC);
+  s.set(15, 18, M);
+  s.set(16, 18, M);
+  for (const [x, y] of [
+    [5, 17],
+    [6, 17],
+    [5, 19],
+    [6, 19],
+    [25, 17],
+    [26, 17],
+    [25, 19],
+    [26, 19],
+  ])
+    s.set(x, y, M);
+  return s;
+}
+
+// ── Bean bag (lounge seat, 2×1) ──────────────────────────────────────────
+function drawBeanBag() {
+  const s = new Sprite(32, 16);
+  const base = '#6a3fc4';
+  const dark = '#4a2a94';
+  const light = '#8f66e8';
+  for (let y = 2; y <= 14; y++) {
+    const half = y < 6 ? 8 + y : 14;
+    s.hline(16 - half, 15 + half, y, y < 5 ? light : y > 11 ? dark : base);
+  }
+  s.rect(9, 5, 14, 4, dark); // seat dip
+  s.rect(10, 6, 12, 2, '#5a35ad');
+  for (let y = 2; y <= 14; y++) {
+    const half = y < 6 ? 8 + y : 14;
+    s.set(16 - half - 1, y, C.out);
+    s.set(16 + half, y, C.out);
+  }
+  s.hline(6, 25, 1, C.out);
+  s.hline(2, 29, 15, C.out);
+  s.set(7, 4, light);
+  s.set(24, 4, light);
+  return s;
+}
+
+// ── Lantern (on tables/desks, 1×1) ───────────────────────────────────────
+function drawLantern() {
+  const s = new Sprite(16, 16);
+  s.rect(6, 1, 4, 1, C.brass0);
+  s.set(7, 0, C.brass1);
+  s.set(8, 0, C.brass1);
+  s.rect(4, 2, 8, 11, C.brass0);
+  s.rect(5, 3, 6, 9, C.shade1);
+  s.rect(6, 4, 4, 7, C.shade2);
+  s.rect(7, 6, 2, 3, C.glow);
+  s.vline(7, 3, 11, C.brass1);
+  s.rect(4, 13, 8, 2, C.brass1);
+  s.outlineRect(3, 1, 10, 15, C.out);
+  return s;
+}
+
 // ── Write assets ─────────────────────────────────────────────────────────
 const ITEMS = [
   {
@@ -422,6 +609,61 @@ const ITEMS = [
     fw: 2,
     fh: 2,
     draw: () => drawWindow(31),
+  },
+  {
+    id: 'PAW_WINDOW_CITY_DAY',
+    name: 'City Window (day)',
+    category: 'wall',
+    canPlaceOnWalls: true,
+    w: 32,
+    h: 32,
+    fw: 2,
+    fh: 2,
+    draw: () => drawWindowDay(7),
+  },
+  {
+    id: 'PAW_WINDOW_CITY_B_DAY',
+    name: 'City Window (east, day)',
+    category: 'wall',
+    canPlaceOnWalls: true,
+    w: 32,
+    h: 32,
+    fw: 2,
+    fh: 2,
+    draw: () => drawWindowDay(31),
+  },
+  {
+    id: 'PAW_NEON_CAT',
+    name: 'Neon Cat',
+    category: 'wall',
+    canPlaceOnWalls: true,
+    w: 32,
+    h: 32,
+    fw: 2,
+    fh: 2,
+    draw: drawNeonCat,
+  },
+  {
+    id: 'PAW_LOUNGE_BEANBAG',
+    name: 'Bean Bag',
+    category: 'chairs',
+    w: 32,
+    h: 16,
+    fw: 2,
+    fh: 1,
+    orientation: 'front',
+    draw: drawBeanBag,
+  },
+  {
+    id: 'PAW_LANTERN',
+    name: 'Lantern',
+    category: 'decor',
+    canPlaceOnSurfaces: true,
+    w: 16,
+    h: 16,
+    fw: 1,
+    fh: 1,
+    draw: drawLantern,
   },
   {
     id: 'PAW_NEON_SIGN',
@@ -491,6 +733,57 @@ const ITEMS = [
   },
 ];
 
+const DUAL_MONITOR_MANIFEST = {
+  id: 'PAW_DUAL_MONITOR',
+  name: 'Dual Monitor',
+  category: 'electronics',
+  type: 'group',
+  groupType: 'state',
+  orientation: 'front',
+  canPlaceOnWalls: false,
+  canPlaceOnSurfaces: true,
+  backgroundTiles: 1,
+  members: [
+    {
+      type: 'group',
+      groupType: 'animation',
+      state: 'on',
+      members: [0, 1, 2].map((frame) => ({
+        type: 'asset',
+        id: `PAW_DUAL_MONITOR_ON_${frame + 1}`,
+        file: `PAW_DUAL_MONITOR_ON_${frame + 1}.png`,
+        width: 32,
+        height: 32,
+        footprintW: 2,
+        footprintH: 2,
+        frame,
+      })),
+    },
+    {
+      type: 'asset',
+      id: 'PAW_DUAL_MONITOR_OFF',
+      file: 'PAW_DUAL_MONITOR_OFF.png',
+      width: 32,
+      height: 32,
+      footprintW: 2,
+      footprintH: 2,
+      state: 'off',
+    },
+  ],
+};
+{
+  const dir = path.join(OUT, 'PAW_DUAL_MONITOR');
+  fs.mkdirSync(dir, { recursive: true });
+  drawDualMonitor(-1).save(path.join(dir, 'PAW_DUAL_MONITOR_OFF.png'));
+  for (let f = 0; f < 3; f++)
+    drawDualMonitor(f).save(path.join(dir, `PAW_DUAL_MONITOR_ON_${f + 1}.png`));
+  fs.writeFileSync(
+    path.join(dir, 'manifest.json'),
+    JSON.stringify(DUAL_MONITOR_MANIFEST, null, 2) + String.fromCharCode(10),
+  );
+  console.log('wrote webview-ui/public/assets/furniture/PAW_DUAL_MONITOR');
+}
+
 for (const item of ITEMS) {
   const dir = path.join(OUT, item.id);
   fs.mkdirSync(dir, { recursive: true });
@@ -507,6 +800,7 @@ for (const item of ITEMS) {
     height: item.h,
     footprintW: item.fw,
     footprintH: item.fh,
+    ...(item.orientation ? { orientation: item.orientation } : {}),
   };
   fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
   console.log(`wrote ${path.relative(ROOT, dir)}`);

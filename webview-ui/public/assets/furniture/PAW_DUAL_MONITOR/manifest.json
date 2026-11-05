@@ -1,0 +1,60 @@
+{
+  "id": "PAW_DUAL_MONITOR",
+  "name": "Dual Monitor",
+  "category": "electronics",
+  "type": "group",
+  "groupType": "state",
+  "orientation": "front",
+  "canPlaceOnWalls": false,
+  "canPlaceOnSurfaces": true,
+  "backgroundTiles": 1,
+  "members": [
+    {
+      "type": "group",
+      "groupType": "animation",
+      "state": "on",
+      "members": [
+        {
+          "type": "asset",
+          "id": "PAW_DUAL_MONITOR_ON_1",
+          "file": "PAW_DUAL_MONITOR_ON_1.png",
+          "width": 32,
+          "height": 32,
+          "footprintW": 2,
+          "footprintH": 2,
+          "frame": 0
+        },
+        {
+          "type": "asset",
+          "id": "PAW_DUAL_MONITOR_ON_2",
+          "file": "PAW_DUAL_MONITOR_ON_2.png",
+          "width": 32,
+          "height": 32,
+          "footprintW": 2,
+          "footprintH": 2,
+          "frame": 1
+        },
+        {
+          "type": "asset",
+          "id": "PAW_DUAL_MONITOR_ON_3",
+          "file": "PAW_DUAL_MONITOR_ON_3.png",
+          "width": 32,
+          "height": 32,
+          "footprintW": 2,
+          "footprintH": 2,
+          "frame": 2
+        }
+      ]
+    },
+    {
+      "type": "asset",
+      "id": "PAW_DUAL_MONITOR_OFF",
+      "file": "PAW_DUAL_MONITOR_OFF.png",
+      "width": 32,
+      "height": 32,
+      "footprintW": 2,
+      "footprintH": 2,
+      "state": "off"
+    }
+  ]
+}

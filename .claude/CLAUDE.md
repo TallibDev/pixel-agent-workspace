@@ -25,8 +25,10 @@ The approved plan is in `docs/PLAN.md`.
 - `server/src/observation/` — observation tracker (honest per-agent model + feed), secret masking, transcript meta, history journal (`~/.pixel-agent-workspace/history/`, 14 days), `service.ts` wiring + history requests.
 - `webview-ui/src/observation/` — HUD: summary bar, agent card, activity feed, hooks wizard, history, Replay.
 - `webview-ui/src/i18n/` — RU/EN dictionaries (`strings.ts`; ru must mirror en keys), `t`/`useT`, tool-status translation.
-- `webview-ui/src/office/life/` — `leisure.ts` (free time only when the agent is not active) and `lighting.ts` (night pass, Canvas 2D).
-- Art: `scripts/paw-art/generate-art.mjs` → `PAW_*` furniture; `build-night-layout.mjs` → `default-layout-2.json`. Regenerate, don't hand-edit the PNGs.
+- `webview-ui/src/office/life/` — `leisure.ts` (free time only when the agent is not active), `lighting.ts` (day/night pass, Canvas 2D), `timeOfDay.ts` (Day/Night/Auto mode, `paw.timeMode`, eased `nightness`, day sprite variants).
+- `webview-ui/src/workspace/` — desktop shell from the design reference: `Sidebar` (nav + upstream toolbar in its footer), `TopBar` (clock, sun/moon/auto, bell, language), `RightPanels` (agents, current tasks, recent activity), `AgentStrip` (bottom cards). Shared panel state in `uiStore.ts`. Mobile keeps upstream's shell.
+- Never show invented progress: "Current tasks" uses an indeterminate bar because agents report no percentages.
+- Art: `scripts/paw-art/generate-art.mjs` → `PAW_*` furniture; `generate-characters.mjs` → `characters/char_*.png`; `build-reference-layout.mjs` → `default-layout-3.json` (current default). Regenerate, don't hand-edit the PNGs.
 - Colours in TS must live in `webview-ui/src/constants.ts` (upstream lint rule).
 
 ## Commands (Node 22, see `.nvmrc`)

@@ -573,6 +573,9 @@ export const LIGHT_COLOR = {
   coffeeMachine: '#ff9f6a',
   fridge: '#bfe8ff',
   person: '#ffe7c4',
+  sun: '#fff1c8',
+  daylight: '#fff4dc',
+  dusk: '#ff9a6a',
 } as const;
 /** Darkness mask stop: how much of the night a light removes. */
 export const lightHoleColor = (alpha: number): string => `rgba(0,0,0,${alpha})`;

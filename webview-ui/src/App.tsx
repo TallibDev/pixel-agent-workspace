@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import { toMajorMinor } from './changelogData.js';
-import { AgentCardBar } from './components/AgentCardBar.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
 import { ChangelogModal } from './components/ChangelogModal.js';
 import { ConnectionIndicator } from './components/ConnectionIndicator.js';
@@ -45,6 +44,10 @@ import { EditTool, type OfficeLayout, TILE_SIZE } from './office/types.js';
 import { isBrowserRuntime, isE2E } from './runtime.js';
 import { installTestHooks } from './testHooks.js';
 import { transport } from './transport/index.js';
+import { AgentStrip } from './workspace/AgentStrip.js';
+import { RightPanels } from './workspace/RightPanels.js';
+import { Sidebar } from './workspace/Sidebar.js';
+import { TopBar } from './workspace/TopBar.js';
 
 // Game state lives outside React — updated imperatively by message handlers
 const officeStateRef = { current: null as OfficeState | null };
@@ -525,6 +528,7 @@ function App() {
               onCloseCard={closeAgentCard}
               readOnly={officeReadOnly}
               hooks={hooksControl}
+              desktopShell={!isMobile}
             />
           )}
 
@@ -658,20 +662,20 @@ function App() {
         </div>
       )}
 
-      {/* A read-only office gets no toolbar: launching, layout editing and every
-          setting would be refused by the server anyway. */}
-      {!isMobile && !officeReadOnly && (
-        <BottomToolbar
-          isEditMode={editor.isEditMode}
-          onToggleEditMode={editor.handleToggleEditMode}
-          isSettingsOpen={isSettingsOpen}
-          onToggleSettings={() => setIsSettingsOpen((v) => !v)}
-          directories={directories}
-          onAddDirectory={directoryEditor.add}
-          onEditDirectory={directoryEditor.edit}
-          terminalAvailable={terminalAvailable}
-          terminalUnavailableReason={terminalUnavailableReason}
-        />
+      {/* Desktop: the upstream toolbar now lives in the sidebar (see `tools`). */}
+
+      {/* Pixel Agent Workspace: top bar and the agent card strip (desktop). */}
+      {!isMobile && !isDebugMode && !editor.isEditMode && (
+        <>
+          <TopBar onFocusAgent={handleCardSelect} />
+          <AgentStrip
+            focusedAgentId={focusedAgentId}
+            onSelect={handleCardSelect}
+            getAppearance={(id) =>
+              getOfficeState().characters.has(id) ? terminalDrawer.getAppearance(id) : null
+            }
+          />
+        </>
       )}
 
       {/* Mobile: Settings floats top-left (the layout editor stays desktop-
@@ -751,18 +755,47 @@ function App() {
         />
       ) : (
         <>
+          {!isDebugMode && (
+            <Sidebar
+              tools={
+                officeReadOnly ? null : (
+                  <BottomToolbar
+                    isEditMode={editor.isEditMode}
+                    onToggleEditMode={editor.handleToggleEditMode}
+                    isSettingsOpen={isSettingsOpen}
+                    onToggleSettings={() => setIsSettingsOpen((v) => !v)}
+                    directories={directories}
+                    onAddDirectory={directoryEditor.add}
+                    onEditDirectory={directoryEditor.edit}
+                    terminalAvailable={terminalAvailable}
+                    terminalUnavailableReason={terminalUnavailableReason}
+                  />
+                )
+              }
+              terminalAvailable={terminalAvailable}
+              terminalOpen={terminalAvailable && terminalDrawer.isOpen}
+              onOpenTerminal={() => {
+                const target =
+                  focusedAgentId !== null && terminalAgentIds.includes(focusedAgentId)
+                    ? focusedAgentId
+                    : terminalAgentIds[0];
+                if (target !== undefined) terminalDrawer.select(target);
+              }}
+              hooksOn={hooksControl.installed === true}
+            />
+          )}
           {officeRegion}
+          {!isDebugMode && <RightPanels onFocusAgent={handleCardSelect} />}
 
           {/* Standalone with a terminal: terminalAvailable is only ever true when
               the server reports a working PTY to a tokened session, which VS
               Code's surface never does. In flow as a flex sibling so the office
               region reflows beside it instead of being overlaid.
 
-              Otherwise (VS Code, or a watch-only standalone session) the card
-              bar stands alone with every agent in the office, external sessions
-              included — the at-a-glance "who needs attention" strip, with a
-              click raising the agent's editor terminal where there is one. */}
-          {terminalAvailable ? (
+              Otherwise the Pixel Agent Workspace agent strip (bottom of the
+              office) is the at-a-glance "who needs attention" row; dismissing an
+              agent stays on the character's overlay (×). */}
+          {terminalAvailable && (
             <TerminalDrawer
               agentIds={terminalAgentIds}
               shownAgentId={terminalDrawer.shownAgentId}
@@ -776,17 +809,6 @@ function App() {
               statusFor={terminalDrawer.statusFor}
               onStatusChange={terminalDrawer.onStatusChange}
             />
-          ) : (
-            !isDebugMode && (
-              <AgentCardBar
-                agentIds={agents}
-                focusedAgentId={focusedAgentId}
-                getAppearance={terminalDrawer.getAppearance}
-                statusFor={terminalDrawer.statusFor}
-                onSelect={handleCardSelect}
-                onClose={handleCloseAgent}
-              />
-            )
           )}
         </>
       )}

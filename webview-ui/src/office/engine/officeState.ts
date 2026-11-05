@@ -32,6 +32,7 @@ import {
   LeisureDirector,
   opposite,
 } from '../life/leisure.js';
+import { getWorldNightness, typeForTimeOfDay } from '../life/timeOfDay.js';
 import { getPetCount, getPetName } from '../sprites/petSpriteData.js';
 import { getLoadedCharacterCount } from '../sprites/spriteData.js';
 import type {
@@ -895,8 +896,9 @@ export class OfficeState {
     }
 
     if (autoOnTiles.size === 0) {
-      this.furniture = layoutToFurnitureInstances(this.layout.furniture);
-      this.lightFurniture = this.layout.furniture;
+      const timed = this.withTimeOfDay(this.layout.furniture);
+      this.furniture = layoutToFurnitureInstances(timed);
+      this.lightFurniture = timed;
       return;
     }
 
@@ -926,8 +928,22 @@ export class OfficeState {
       return item;
     });
 
-    this.furniture = layoutToFurnitureInstances(modifiedFurniture);
-    this.lightFurniture = modifiedFurniture;
+    const timed = this.withTimeOfDay(modifiedFurniture);
+    this.furniture = layoutToFurnitureInstances(timed);
+    this.lightFurniture = timed;
+  }
+
+  /** Pixel Agent Workspace: swap day/night sprite variants (window views). */
+  private withTimeOfDay(items: PlacedFurniture[]): PlacedFurniture[] {
+    const n = getWorldNightness();
+    let changed = false;
+    const out = items.map((item) => {
+      const type = typeForTimeOfDay(item.type, n);
+      if (type === item.type) return item;
+      changed = true;
+      return { ...item, type };
+    });
+    return changed ? out : items;
   }
 
   setAgentTool(id: number, tool: string | null): void {

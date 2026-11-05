@@ -23,7 +23,8 @@ import type {
   SelectionRenderState,
 } from '../engine/renderer.js';
 import { renderFrame } from '../engine/renderer.js';
-import { collectLights, DEFAULT_NIGHT, renderLighting } from '../life/lighting.js';
+import { collectLights, renderLighting } from '../life/lighting.js';
+import { advanceWorldTime, getWorldNightness } from '../life/timeOfDay.js';
 import { EditTool, TILE_SIZE } from '../types.js';
 import { computeNormalModeCursor } from './officeCanvasCursor.js';
 import { useCanvasTouchGestures } from './useCanvasTouchGestures.js';
@@ -145,6 +146,7 @@ export function OfficeCanvas({
 
     const stop = startGameLoop(canvas, {
       update: (dt) => {
+        advanceWorldTime(dt);
         officeState.update(dt);
       },
       render: (ctx) => {
@@ -233,7 +235,7 @@ export function OfficeCanvas({
               officeState.lightFurniture.length > 0 ? officeState.lightFurniture : layout.furniture,
               officeState.getCharacters(),
             ),
-            DEFAULT_NIGHT,
+            getWorldNightness(),
             performance.now() / 1000,
             officeState.tileMap,
           );
