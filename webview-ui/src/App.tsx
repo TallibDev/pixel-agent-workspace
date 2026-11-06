@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
-import { toMajorMinor } from './changelogData.js';
 import { BottomToolbar } from './components/BottomToolbar.js';
-import { ChangelogModal } from './components/ChangelogModal.js';
 import { ConnectionIndicator } from './components/ConnectionIndicator.js';
 import { DebugView } from './components/DebugView.js';
 import { DirectoryModal } from './components/DirectoryModal.js';
@@ -102,7 +100,6 @@ function App() {
     directorySuggestions,
     agentDirectoryNames,
     externalAssetDirectories,
-    lastSeenVersion,
     extensionVersion,
     watchAllSessions,
     setWatchAllSessions,
@@ -133,7 +130,6 @@ function App() {
   const [migrationNoticeDismissed, setMigrationNoticeDismissed] = useState(false);
   const showMigrationNotice = layoutWasReset && !migrationNoticeDismissed;
 
-  const [isChangelogOpen, setIsChangelogOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHooksInfoOpen, setIsHooksInfoOpen] = useState(false);
   const [hooksTooltipDismissed, setHooksTooltipDismissed] = useState(false);
@@ -183,17 +179,6 @@ function App() {
     focusedAgentId,
     launchAgent: launchIntoDirectory,
   });
-
-  const currentMajorMinor = toMajorMinor(extensionVersion);
-
-  const handleWhatsNewDismiss = useCallback(() => {
-    transport.send({ type: 'setLastSeenVersion', version: currentMajorMinor });
-  }, [currentMajorMinor]);
-
-  const handleOpenChangelog = useCallback(() => {
-    setIsChangelogOpen(true);
-    transport.send({ type: 'setLastSeenVersion', version: currentMajorMinor });
-  }, [currentMajorMinor]);
 
   // Sync alwaysShowOverlay from persisted settings
   useEffect(() => {
@@ -693,13 +678,8 @@ function App() {
         </div>
       )}
 
-      <VersionIndicator
-        currentVersion={extensionVersion}
-        lastSeenVersion={lastSeenVersion}
-        hideUpdateNotice={officeReadOnly}
-        onDismiss={handleWhatsNewDismiss}
-        onOpenChangelog={handleOpenChangelog}
-      />
+      {/* Pixel Agent Workspace: the version is a plain label (no What's New). */}
+      <VersionIndicator currentVersion={extensionVersion} />
 
       {intro && (
         <IntroBubble
@@ -714,11 +694,7 @@ function App() {
           onChoice={handleConsentChoice}
           onClose={handleIntroClose}
           escapeSuppressed={
-            isSettingsOpen ||
-            isChangelogOpen ||
-            isHooksInfoOpen ||
-            showMigrationNotice ||
-            editor.isEditMode
+            isSettingsOpen || isHooksInfoOpen || showMigrationNotice || editor.isEditMode
           }
         />
       )}
@@ -855,12 +831,6 @@ function App() {
         onSubmit={directoryEditor.submit}
         onDelete={directoryEditor.remove}
         onClose={directoryEditor.close}
-      />
-
-      <ChangelogModal
-        isOpen={isChangelogOpen}
-        onClose={() => setIsChangelogOpen(false)}
-        currentVersion={extensionVersion}
       />
 
       <SettingsModal

@@ -19,6 +19,8 @@ export interface ObservationState {
   feed: readonly ActivityEntry[];
   /** True once a snapshot arrived (before that, counts are "not yet known"). */
   synced: boolean;
+  /** False while the link to the server is down: nothing shown is current then. */
+  connected: boolean;
 }
 
 export interface StatusCounts {
@@ -26,11 +28,13 @@ export interface StatusCounts {
   working: number;
   waiting: number;
   idle: number;
+  /** Error or disconnected. */
+  problem: number;
   unknown: number;
 }
 
 export class ObservationStore {
-  private state: ObservationState = { agents: new Map(), feed: [], synced: false };
+  private state: ObservationState = { agents: new Map(), feed: [], synced: false, connected: true };
   private readonly listeners = new Set<() => void>();
 
   getState = (): ObservationState => this.state;
@@ -46,7 +50,7 @@ export class ObservationStore {
       case 'observationSnapshot': {
         const agents = new Map<number, AgentObservation>();
         for (const a of msg.agents) agents.set(a.id, a);
-        this.set({ agents, feed: msg.activity.slice(-FEED_LIMIT), synced: true });
+        this.set({ ...this.state, agents, feed: msg.activity.slice(-FEED_LIMIT), synced: true });
         return true;
       }
       case 'agentObservation': {
@@ -76,17 +80,30 @@ export class ObservationStore {
     }
   }
 
+  setConnected(connected: boolean): void {
+    if (connected === this.state.connected) return;
+    this.set({ ...this.state, connected });
+  }
+
   private set(next: ObservationState): void {
     this.state = next;
     for (const l of this.listeners) l();
   }
 }
 
-export function countStatuses(agents: Iterable<AgentObservation>): StatusCounts {
-  const c: StatusCounts = { detected: 0, working: 0, waiting: 0, idle: 0, unknown: 0 };
+/** The status to show: while the server link is down, every agent is "disconnected". */
+export function displayStatus(
+  a: Pick<AgentObservation, 'status'>,
+  connected: boolean,
+): ObservedStatus {
+  return connected ? a.status : 'disconnected';
+}
+
+export function countStatuses(agents: Iterable<AgentObservation>, connected = true): StatusCounts {
+  const c: StatusCounts = { detected: 0, working: 0, waiting: 0, idle: 0, problem: 0, unknown: 0 };
   for (const a of agents) {
     c.detected++;
-    c[bucketOf(a.status)]++;
+    c[bucketOf(displayStatus(a, connected))]++;
   }
   return c;
 }
@@ -99,16 +116,39 @@ export function bucketOf(status: ObservedStatus): Exclude<keyof StatusCounts, 'd
     case 'waiting_user':
       return 'waiting';
     case 'idle':
+    case 'completed':
       return 'idle';
+    case 'error':
+    case 'disconnected':
+      return 'problem';
     default:
       return 'unknown';
   }
 }
 
-/** Display name from what the source told us; never an invented persona. */
+/** Platform names. Short ones number sessions ("Codex #2"). */
+const PROVIDER_NAME: Record<string, string> = { 'claude-code': 'Claude Code', codex: 'Codex' };
+const PROVIDER_SHORT: Record<string, string> = { 'claude-code': 'Claude', codex: 'Codex' };
+
+export function providerName(source: string): string {
+  return PROVIDER_NAME[source] ?? source;
+}
+
+/** Neutral session label, e.g. "Codex #2"; null until the server numbered it. */
+export function sessionLabel(
+  a: Pick<AgentObservation, 'source' | 'sessionOrdinal'>,
+): string | null {
+  if (a.sessionOrdinal === null) return null;
+  return `${PROVIDER_SHORT[a.source] ?? a.source} #${a.sessionOrdinal}`;
+}
+
+/**
+ * The agent's display name: the user's name, else a role the source reported
+ * (e.g. a named teammate), else the neutral session label. Never the project.
+ */
 export function agentLabel(
-  a: Pick<AgentObservation, 'id' | 'agentName' | 'project'>,
+  a: Pick<AgentObservation, 'id' | 'agentName' | 'customName' | 'source' | 'sessionOrdinal'>,
   fallback: (id: number) => string = (id) => `Agent #${id}`,
 ): string {
-  return a.agentName ?? a.project ?? fallback(a.id);
+  return a.customName ?? a.agentName ?? sessionLabel(a) ?? fallback(a.id);
 }

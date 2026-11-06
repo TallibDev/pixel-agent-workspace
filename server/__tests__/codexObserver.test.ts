@@ -269,6 +269,7 @@ describe('readTranscriptMeta on Codex rollouts', () => {
       cwd: 'D:\\Work\\shop-api',
       gitBranch: 'main',
       model: 'gpt-5.5-codex',
+      task: null,
     });
     fs.rmSync(dir, { recursive: true, force: true });
   });

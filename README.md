@@ -1,3 +1,5 @@
+> **Pixel Agent Workspace** — this repository builds on Pixel Agents (below). How to run it, connect Claude Code and Codex, and read the office: [docs/USAGE.md](docs/USAGE.md) · Codex: [docs/CODEX.md](docs/CODEX.md) · Authorship: [NOTICE.md](NOTICE.md).
+
 <h1 align="center">
   <a href="https://github.com/pixel-agents-hq/pixel-agents/discussions">
     <img src="webview-ui/public/banner.png" alt="Pixel Agents">

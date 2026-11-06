@@ -24,7 +24,7 @@ export type CodexEvent =
     }
   | { kind: 'model'; model: string }
   | { kind: 'turnStart' }
-  | { kind: 'turnEnd'; aborted: boolean }
+  | { kind: 'turnEnd'; aborted: boolean; error?: string | null; reason?: string | null }
   | { kind: 'toolStart'; callId: string; toolName: string; status: string }
   | { kind: 'toolEnd'; callId: string }
   | { kind: 'tokens'; contextTokens: number; window: number | null };
@@ -139,10 +139,20 @@ export function parseRolloutLine(line: string): CodexEvent[] {
     switch (p.type) {
       case 'task_started':
         return [{ kind: 'turnStart' }];
-      case 'task_complete':
-        return [{ kind: 'turnEnd', aborted: false }];
+      case 'task_complete': {
+        const err = p.error as Record<string, unknown> | string | null | undefined;
+        const error =
+          typeof err === 'string'
+            ? err
+            : err && typeof err === 'object'
+              ? (str(err.message) ?? 'Error')
+              : null;
+        return [
+          error ? { kind: 'turnEnd', aborted: false, error } : { kind: 'turnEnd', aborted: false },
+        ];
+      }
       case 'turn_aborted':
-        return [{ kind: 'turnEnd', aborted: true }];
+        return [{ kind: 'turnEnd', aborted: true, reason: str(p.reason) }];
       case 'token_count': {
         const info = p.info as Record<string, unknown> | null | undefined;
         if (!info) return [];

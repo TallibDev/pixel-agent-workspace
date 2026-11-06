@@ -6,5 +6,8 @@ export const STATUS_DOT: Record<ObservedStatus, string> = {
   waiting_permission: 'var(--paw-warn)',
   waiting_user: 'var(--paw-warn)',
   idle: 'var(--paw-idle)',
+  completed: 'var(--paw-done)',
+  error: 'var(--paw-error)',
+  disconnected: 'var(--paw-unknown)',
   unknown: 'var(--paw-unknown)',
 };

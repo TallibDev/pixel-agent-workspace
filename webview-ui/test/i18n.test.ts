@@ -77,7 +77,7 @@ describe('replay helpers', () => {
     expect(statusAt(entries, 0).get(1)).toBe('unknown');
     expect(statusAt(entries, 1).get(1)).toBe('working');
     expect(statusAt(entries, 2).get(1)).toBe('waiting_permission');
-    expect(statusAt(entries, 3).get(1)).toBe('idle');
+    expect(statusAt(entries, 3).get(1)).toBe('completed');
     expect(statusAt(entries, 4).has(1)).toBe(false);
   });
 

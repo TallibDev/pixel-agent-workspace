@@ -28,6 +28,8 @@ The approved plan is in `docs/PLAN.md`.
 - `webview-ui/src/i18n/` — RU/EN dictionaries (`strings.ts`; ru must mirror en keys), `t`/`useT`, tool-status translation.
 - `webview-ui/src/office/life/` — `leisure.ts` (free time only when the agent is not active), `lighting.ts` (day/night pass, Canvas 2D), `timeOfDay.ts` (Day/Night/Auto mode, `paw.timeMode`, eased `nightness`, day sprite variants).
 - `webview-ui/src/workspace/` — desktop shell from the design reference: `Sidebar` (nav + upstream toolbar in its footer), `TopBar` (clock, sun/moon/auto, bell, language), `RightPanels` (agents, current tasks, recent activity), `AgentStrip` (bottom cards). Shared panel state in `uiStore.ts`. Mobile keeps upstream's shell.
+- Identity: Agent ≠ Platform ≠ Project ≠ Session. Display name = user name (`agents.json`, `observation/agentIdentity.ts`) → reported role → `Codex #N`/`Claude #N`. Never the project. Statuses incl. completed/error/disconnected live in `observationTracker.ts` (`sweep()` for time rules).
+- The upstream What's New / changelog and the intro's Discord link are removed on purpose (they pointed at upstream's news and community). Keep the version label plain.
 - Never show invented progress: "Current tasks" uses an indeterminate bar because agents report no percentages.
 - Art: `scripts/paw-art/generate-art.mjs` → `PAW_*` furniture; `generate-characters.mjs` → `characters/char_*.png`; `build-reference-layout.mjs` → `default-layout-3.json` (current default). Regenerate, don't hand-edit the PNGs.
 - Colours in TS must live in `webview-ui/src/constants.ts` (upstream lint rule).

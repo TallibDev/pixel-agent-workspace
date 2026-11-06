@@ -100,7 +100,7 @@ describe('ObservationTracker', () => {
     add(2);
     store.broadcast({ type: 'agentStatus', id: 1, status: 'waiting' });
     store.broadcast({ type: 'agentStatus', id: 2, status: 'waiting', awaitingInput: true });
-    expect(tracker.get(1)!.status).toBe('idle');
+    expect(tracker.get(1)!.status).toBe('completed');
     expect(tracker.get(1)!.activity).toBeNull();
     expect(tracker.get(2)!.status).toBe('waiting_user');
   });
@@ -328,11 +328,12 @@ describe('readTranscriptMeta', () => {
       cwd: 'D:\\Project\\App',
       gitBranch: 'main',
       model: 'claude-sonnet-5-5',
+      task: null,
     });
   });
 
   it('returns nulls for a missing file', () => {
-    expect(readTranscriptMeta(path.join(dir, 'nope.jsonl'))).toEqual(noMeta());
-    expect(readTranscriptMeta(undefined)).toEqual(noMeta());
+    expect(readTranscriptMeta(path.join(dir, 'nope.jsonl'))).toEqual({ ...noMeta(), task: null });
+    expect(readTranscriptMeta(undefined)).toEqual({ ...noMeta(), task: null });
   });
 });

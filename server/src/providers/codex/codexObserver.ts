@@ -19,6 +19,7 @@ import * as path from 'node:path';
 
 import { createAgentState } from '../../agentState.js';
 import type { AgentStateStore } from '../../agentStateStore.js';
+import { getObservationTracker } from '../../observation/observationTracker.js';
 import { assignPaletteIfNeeded } from '../../paletteAssigner.js';
 import type { AgentState } from '../../types.js';
 import { type CodexEvent, parseRolloutLine } from './rolloutParser.js';
@@ -197,6 +198,7 @@ export class CodexObserver {
     let active = false;
     const open = new Map<string, { toolName: string; status: string }>();
     let tokens: { contextTokens: number; window: number | null } | null = null;
+    let lastEnd: Extract<CodexEvent, { kind: 'turnEnd' }> | null = null;
     for (const ev of events) {
       if (ev.kind === 'meta' || ev.kind === 'model') continue;
       if (ev.kind === 'turnStart') {
@@ -205,6 +207,7 @@ export class CodexObserver {
       } else if (ev.kind === 'turnEnd') {
         active = false;
         open.clear();
+        lastEnd = ev;
       } else if (ev.kind === 'toolStart') open.set(ev.callId, ev);
       else if (ev.kind === 'toolEnd') open.delete(ev.callId);
       else if (ev.kind === 'tokens') tokens = ev;
@@ -213,8 +216,8 @@ export class CodexObserver {
     if (active) {
       this.apply(t, { kind: 'turnStart' });
       for (const [callId, tool] of open) this.apply(t, { kind: 'toolStart', callId, ...tool });
-    } else if (events.some((e) => e.kind === 'turnEnd')) {
-      this.apply(t, { kind: 'turnEnd', aborted: false });
+    } else if (lastEnd) {
+      this.apply(t, lastEnd);
     }
   }
 
@@ -225,6 +228,10 @@ export class CodexObserver {
     try {
       st = fs.statSync(t.file);
     } catch {
+      // The rollout vanished: we can no longer see this session.
+      if (t.agentId !== null) {
+        getObservationTracker(this.store)?.reportDisconnected(t.agentId, 'Session file is gone');
+      }
       return;
     }
     if (st.size < t.offset) {
@@ -349,6 +356,7 @@ export class CodexObserver {
         agent.activeToolStatuses.clear();
         agent.activeToolNames.clear();
         agent.isWaiting = true;
+        if (ev.error) getObservationTracker(this.store)?.reportError(id, ev.error);
         this.store.broadcast({ type: 'agentToolsClear', id });
         this.store.broadcast({ type: 'agentStatus', id, status: 'waiting' });
         return;

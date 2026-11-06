@@ -14,6 +14,8 @@
   --paw-warn: #ffb547;
   --paw-idle: #9d93b8;
   --paw-unknown: #6f6690;
+  --paw-done: #7be3a4;
+  --paw-error: #ff5a6a;
   --paw-font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --paw-radius: 12px;
 }
@@ -423,7 +425,8 @@
   transform: translateX(-50%);
   z-index: 26;
   display: flex;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
   max-width: calc(100% - 24px);
   padding: 8px;
   border-radius: 16px;
@@ -431,7 +434,40 @@
   box-shadow:
     inset 0 0 0 1px var(--paw-line-soft),
     0 10px 30px rgba(5, 3, 14, 0.5);
+}
+.paw-strip-cards {
+  display: flex;
+  gap: 10px;
   overflow-x: auto;
+}
+.paw-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.paw-filter select {
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--paw-panel-2);
+  box-shadow: inset 0 0 0 1px var(--paw-line);
+  color: var(--paw-text);
+  font: inherit;
+  font-size: 12px;
+}
+.paw-filter select:focus-visible,
+.paw-filter-reset:focus-visible {
+  outline: 2px solid var(--paw-accent);
+  outline-offset: 1px;
+}
+.paw-filter-reset {
+  border: 0;
+  background: transparent;
+  color: #b9a2ff;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
 }
 .paw-strip-empty {
   margin: 6px 10px;

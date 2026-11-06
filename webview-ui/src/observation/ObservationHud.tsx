@@ -1,6 +1,6 @@
 import './observation.css';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type {
   ActivityEntry,
@@ -19,9 +19,16 @@ import {
   useLanguage,
   useT,
 } from '../i18n/index.js';
+import { transport } from '../transport/index.js';
 import { setPanel, togglePanel, usePanel } from '../workspace/uiStore.js';
 import { entryText } from './entryText.js';
-import { agentLabel, countStatuses } from './observationStore.js';
+import {
+  agentLabel,
+  countStatuses,
+  displayStatus,
+  providerName,
+  sessionLabel,
+} from './observationStore.js';
 import { delayToNext, REPLAY_SPEEDS, statusAt } from './replay.js';
 import { type SessionRecording, useHistory } from './useHistory.js';
 import { useObservation } from './useObservation.js';
@@ -30,13 +37,11 @@ const STATUS_COLOR: Record<ObservedStatus, string> = {
   working: 'var(--obs-working)',
   waiting_permission: 'var(--obs-waiting)',
   waiting_user: 'var(--obs-waiting-user)',
-  idle: 'var(--obs-idle)',
+  idle: 'var(--obs-idle-soft)',
+  completed: 'var(--obs-idle)',
+  error: 'var(--obs-error)',
+  disconnected: 'var(--obs-off)',
   unknown: 'var(--obs-unknown)',
-};
-
-const SOURCE_LABEL: Record<string, string> = {
-  'claude-code': 'Claude Code',
-  codex: 'Codex',
 };
 
 export interface HooksControl {
@@ -64,10 +69,10 @@ export function ObservationHud({
 }: Props) {
   const t = useT();
   const lang = useLanguage();
-  const { agents, feed, synced } = useObservation();
+  const { agents, feed, synced, connected } = useObservation();
   const panel = usePanel();
   const history = useHistory(panel === 'history', readOnly);
-  const counts = useMemo(() => countStatuses(agents.values()), [agents]);
+  const counts = useMemo(() => countStatuses(agents.values(), connected), [agents, connected]);
   const selected = selectedAgentId !== null ? agents.get(selectedAgentId) : undefined;
   const hooksOn =
     hooks.installed === true || [...agents.values()].some((a) => a.channel === 'hooks');
@@ -107,6 +112,9 @@ export function ObservationHud({
             label={t('bar.waiting')}
           />
           <Stat color={STATUS_COLOR.idle} value={n(counts.idle)} label={t('bar.idle')} />
+          {counts.problem > 0 && (
+            <Stat color={STATUS_COLOR.error} value={n(counts.problem)} label={t('bar.problems')} />
+          )}
           {counts.unknown > 0 && (
             <Stat color={STATUS_COLOR.unknown} value={n(counts.unknown)} label={t('bar.unknown')} />
           )}
@@ -161,7 +169,15 @@ export function ObservationHud({
       )}
 
       {selected && !replaying && (
-        <AgentCard agent={selected} onClose={onCloseCard} t={t} lang={lang} fallback={fallback} />
+        <AgentCard
+          agent={selected}
+          connected={connected}
+          readOnly={readOnly}
+          onClose={onCloseCard}
+          t={t}
+          lang={lang}
+          fallback={fallback}
+        />
       )}
 
       {panel === 'feed' && (
@@ -276,12 +292,16 @@ function Field({
 
 function AgentCard({
   agent,
+  connected,
+  readOnly,
   onClose,
   t,
   lang,
   fallback,
 }: {
   agent: AgentObservation;
+  connected: boolean;
+  readOnly: boolean;
   onClose: () => void;
   t: Translate;
   lang: Language;
@@ -289,28 +309,93 @@ function AgentCard({
 }) {
   const now = useNow(15_000);
   const name = agentLabel(agent, fallback);
-  const role = agent.isTeamLead
-    ? t('card.roleLead')
-    : agent.teamName
-      ? t('card.roleTeammateIn', { team: agent.teamName })
+  const status = displayStatus(agent, connected);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    setEditing(false);
+  }, [agent.id]);
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  // Role only from the source (a named teammate / lead); never guessed.
+  const role = agent.agentName
+    ? agent.agentName
+    : agent.isTeamLead
+      ? t('card.roleLead')
       : agent.leadAgentId !== null
         ? t('card.roleTeammate')
-        : t('card.roleMain');
+        : null;
+  const session = sessionLabel(agent);
   const pct =
     agent.contextTokens !== null && agent.maxContextTokens
       ? Math.min(100, Math.round((agent.contextTokens / agent.maxContextTokens) * 100))
       : null;
   const action = agent.currentAction ?? agent.lastAction;
 
+  const save = () => {
+    transport.send({ type: 'renameAgent', id: agent.id, name: draft.trim() || null });
+    setEditing(false);
+  };
+
   return (
     <section className="obs-panel obs-card" aria-label={t('card.aria', { name })}>
       <div className="obs-card-head">
         <div className="obs-card-title">
-          <h2 title={name}>{name}</h2>
+          {editing ? (
+            <form
+              className="obs-rename"
+              onSubmit={(e) => {
+                e.preventDefault();
+                save();
+              }}
+            >
+              <input
+                ref={inputRef}
+                value={draft}
+                maxLength={40}
+                placeholder={t('card.renamePlaceholder')}
+                aria-label={t('card.rename')}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.stopPropagation();
+                    setEditing(false);
+                  }
+                }}
+              />
+              <button type="submit" className="obs-btn">
+                {t('card.renameSave')}
+              </button>
+              <button type="button" className="obs-btn" onClick={() => setEditing(false)}>
+                {t('card.renameCancel')}
+              </button>
+              <small>{t('card.renameHint')}</small>
+            </form>
+          ) : (
+            <h2 title={name}>
+              {name}
+              <button
+                type="button"
+                className="obs-edit"
+                aria-label={t('card.rename')}
+                title={readOnly ? t('card.renameNeedsToken') : t('card.rename')}
+                disabled={readOnly}
+                onClick={() => {
+                  setDraft(agent.customName ?? '');
+                  setEditing(true);
+                }}
+              >
+                ✎
+              </button>
+            </h2>
+          )}
           <span className="obs-status">
-            <i className="obs-dot" style={{ background: STATUS_COLOR[agent.status] }} />
-            {t(`status.${agent.status}` as const)}
-            {agent.activity && agent.status === 'working'
+            <i className="obs-dot" style={{ background: STATUS_COLOR[status] }} />
+            {t(`status.${status}` as const)}
+            {agent.activity && status === 'working'
               ? ` · ${t(`activity.${agent.activity}` as const)}`
               : ''}
           </span>
@@ -320,6 +405,24 @@ function AgentCard({
         </button>
       </div>
 
+      {!connected && <p className="obs-offline">{t('card.offline')}</p>}
+
+      <dl className="obs-fields">
+        <Field t={t} label={t('card.platform')} value={providerName(agent.source)} />
+        <Field t={t} label={t('card.project')} value={agent.project} />
+        <Field
+          t={t}
+          label={t('card.session')}
+          value={`${session ?? ''}${session ? ' · ' : ''}${agent.sessionId.slice(0, 8)}`}
+          mono={!session}
+        />
+        <Field t={t} label={t('card.roleField')} value={role} />
+        <Field t={t} label={t('card.task')} value={agent.task} />
+        {agent.statusDetail && (status === 'error' || status === 'disconnected') && (
+          <Field t={t} label={t('card.detail')} value={agent.statusDetail} />
+        )}
+      </dl>
+
       {action && (
         <p className="obs-now">
           <small>{agent.currentAction ? t('card.now') : t('card.lastAction')}</small>
@@ -328,16 +431,8 @@ function AgentCard({
       )}
 
       <dl className="obs-fields">
-        <Field t={t} label={t('card.role')} value={role} />
-        <Field
-          t={t}
-          label={t('card.environment')}
-          value={SOURCE_LABEL[agent.source] ?? agent.source}
-        />
-        <Field t={t} label={t('card.project')} value={agent.project} />
         <Field t={t} label={t('card.branch')} value={agent.gitBranch} mono />
         <Field t={t} label={t('card.model')} value={agent.model} mono />
-        <Field t={t} label={t('card.session')} value={agent.sessionId.slice(0, 8)} mono />
         <Field
           t={t}
           label={t('card.lastActivity')}
@@ -514,10 +609,11 @@ function HistoryPanel({
           {state.sessions.map((s) => (
             <li key={s.sessionId}>
               <div className="obs-session-main">
-                <b>{s.project ?? s.sessionId.slice(0, 8)}</b>
+                <b>{s.customName ?? sessionLabel(s) ?? s.sessionId.slice(0, 8)}</b>
                 {s.live && <span className="obs-live">{t('history.live')}</span>}
                 <small>
-                  {SOURCE_LABEL[s.source] ?? s.source} · {dateRange(s, lang)} ·{' '}
+                  {providerName(s.source)}
+                  {s.project ? ` · ${s.project}` : ''} · {dateRange(s, lang)} ·{' '}
                   {t('history.events', { n: s.events })}
                 </small>
               </div>
@@ -569,7 +665,11 @@ function ReplayPlayer({
 
   const current = entries[index];
   const statuses = statusAt(entries, index);
-  const title = session?.project ?? entries[0]?.project ?? recording.sessionId.slice(0, 8);
+  const title =
+    (session && (session.customName ?? sessionLabel(session))) ??
+    session?.project ??
+    entries[0]?.project ??
+    recording.sessionId.slice(0, 8);
 
   return (
     <>

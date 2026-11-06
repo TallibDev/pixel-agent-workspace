@@ -25,6 +25,9 @@ import {
 } from '../../constants.js';
 import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js';
 import { getLanguage, t, translateAction, useLanguage } from '../../i18n/index.js';
+import { agentLabel, displayStatus } from '../../observation/observationStore.js';
+import { observationStore } from '../../observation/useObservation.js';
+import { isCharacterHidden } from '../../workspace/visibility.js';
 import type { OfficeState } from '../engine/officeState.js';
 import type { LeisureCharacter } from '../life/leisure.js';
 import { overlayProjection } from '../projection.js';
@@ -159,6 +162,9 @@ export function ToolOverlay({
       {allIds.map((id) => {
         const ch = officeState.characters.get(id);
         if (!ch) return null;
+        if (isCharacterHidden(ch)) return null; // platform/project filter
+        const obsState = observationStore.getState();
+        const obs = ch.isSubagent ? undefined : obsState.agents.get(id);
 
         const isSelected = selectedId === id;
         const isHovered = hoveredId === id;
@@ -268,6 +274,11 @@ export function ToolOverlay({
           if (!ch.isActive && pastime && activityText === t('overlay.idle')) {
             activityText = t('overlay.idleWith', { activity: t(`leisure.${pastime}` as const) });
           }
+          // Problems the office FSM can't express are stated plainly.
+          const shown = obs ? displayStatus(obs, obsState.connected) : null;
+          if (shown === 'error' || shown === 'disconnected') {
+            activityText = t(`status.${shown}` as const);
+          }
         }
 
         // Determine dot color
@@ -285,7 +296,13 @@ export function ToolOverlay({
         }
 
         // Team info
-        const teamRoleLabel = ch.isTeamLead ? t('overlay.lead') : ch.agentName || null;
+        // Name line: the agent's own name (user's, reported role, or "Codex #1"),
+        // never the project — the project stays on its own line below.
+        const teamRoleLabel = obs
+          ? `${agentLabel(obs)}${ch.isTeamLead ? ` · ${t('overlay.lead')}` : ''}`
+          : ch.isTeamLead
+            ? t('overlay.lead')
+            : ch.agentName || null;
         const hasExtraLines = !!(ch.directoryName || teamRoleLabel);
 
         // Context gauge. Every agent gets one — lead, teammate, adopted,

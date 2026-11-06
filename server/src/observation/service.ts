@@ -1,4 +1,5 @@
 import type { AgentStateStore } from '../agentStateStore.js';
+import { AgentIdentityStore } from './agentIdentity.js';
 import { HistoryJournal, type HistoryOptions } from './historyJournal.js';
 import { attachObservationTracker, type ObservationTracker } from './observationTracker.js';
 
@@ -9,13 +10,14 @@ import { attachObservationTracker, type ObservationTracker } from './observation
 interface Observation {
   tracker: ObservationTracker;
   history: HistoryJournal | null;
+  identity: AgentIdentityStore;
 }
 
 const services = new WeakMap<AgentStateStore, Observation>();
 
 export function attachObservation(
   store: AgentStateStore,
-  opts: { history?: boolean | HistoryOptions } = {},
+  opts: { history?: boolean | HistoryOptions; identityFile?: string | null } = {},
 ): Observation {
   const existing = services.get(store);
   if (existing) return existing;
@@ -23,10 +25,12 @@ export function attachObservation(
     opts.history === false
       ? null
       : new HistoryJournal(typeof opts.history === 'object' ? opts.history : {});
+  const identity = new AgentIdentityStore({ file: opts.identityFile });
   const tracker = attachObservationTracker(store, {
     onRecord: history ? (entry, agent) => history.record(entry, agent) : undefined,
+    identity,
   });
-  const service = { tracker, history };
+  const service = { tracker, history, identity };
   services.set(store, service);
   return service;
 }
@@ -50,6 +54,11 @@ export function handleObservationMessage(
   send: Send,
   store: AgentStateStore,
 ): boolean {
+  if (msg.type === 'renameAgent') {
+    const s = services.get(store);
+    if (s && typeof msg.id === 'number') s.tracker.rename(msg.id, msg.name);
+    return true;
+  }
   if (msg.type !== 'requestHistorySessions' && msg.type !== 'requestSessionHistory') return false;
   const s = services.get(store);
   if (!s?.history?.enabled) {
@@ -59,7 +68,9 @@ export function handleObservationMessage(
   if (msg.type === 'requestHistorySessions') {
     send({
       type: 'historySessions',
-      sessions: s.history.listSessions(s.tracker.liveSessionIds()),
+      sessions: s.history.listSessions(s.tracker.liveSessionIds(), 100, (source, id) =>
+        s.identity.peek(source, id),
+      ),
     });
     return true;
   }

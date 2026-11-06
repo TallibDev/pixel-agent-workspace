@@ -169,6 +169,7 @@ components:
         # Observation history (Pixel Agent Workspace)
         - $ref: '#/components/schemas/RequestHistorySessions'
         - $ref: '#/components/schemas/RequestSessionHistory'
+        - $ref: '#/components/schemas/RenameAgent'
       discriminator: type
 
     # ── Server message variants ────────────────────────────────────
@@ -532,7 +533,8 @@ components:
       required:
         [id, source, sessionId, isExternal, channel, project, cwd, gitBranch, model, status,
          activity, currentAction, lastAction, firstSeenAt, lastEventAt, subagents,
-         contextTokens, maxContextTokens, teamName, agentName, isTeamLead, leadAgentId]
+         contextTokens, maxContextTokens, teamName, agentName, isTeamLead, leadAgentId,
+         sessionOrdinal, customName, task, statusDetail]
       properties:
         id:
           type: integer
@@ -582,6 +584,18 @@ components:
           type: boolean
         leadAgentId:
           type: [integer, 'null']
+        sessionOrdinal:
+          description: Per-provider number of this session ("Codex #2"), stable across restarts.
+          type: [integer, 'null']
+        customName:
+          description: Name the user gave this agent; never derived from the project.
+          type: [string, 'null']
+        task:
+          description: First line of the user's latest request, as recorded by the source (masked).
+          type: [string, 'null']
+        statusDetail:
+          description: Short reason reported with error/disconnected statuses, when the source gives one.
+          type: [string, 'null']
 
     HistorySessions:
       description: Sessions found in the retained history, newest activity first.
@@ -627,7 +641,7 @@ components:
     HistorySession:
       type: object
       additionalProperties: false
-      required: [sessionId, source, project, firstTs, lastTs, events, live]
+      required: [sessionId, source, project, firstTs, lastTs, events, live, sessionOrdinal, customName]
       properties:
         sessionId:
           type: string
@@ -643,6 +657,10 @@ components:
           type: integer
         live:
           type: boolean
+        sessionOrdinal:
+          type: [integer, 'null']
+        customName:
+          type: [string, 'null']
 
     HistoryEntry:
       type: object
@@ -670,7 +688,8 @@ components:
 
     ObservedStatus:
       type: string
-      enum: [unknown, working, waiting_permission, waiting_user, idle]
+      enum:
+        [unknown, working, waiting_permission, waiting_user, idle, completed, error, disconnected]
 
     ObservedActivity:
       type: string
@@ -688,7 +707,8 @@ components:
 
     ActivityKind:
       type: string
-      enum: [joined, left, tool, permission, turnEnd, waitingInput, subagentStart, subagentEnd]
+      enum:
+        [joined, left, tool, permission, turnEnd, waitingInput, subagentStart, subagentEnd, error, disconnected]
 
     ActivityEntry:
       type: object
@@ -1589,6 +1609,21 @@ components:
           const: requestSessionHistory
         sessionId:
           type: string
+
+    RenameAgent:
+      description: |
+        Give an agent a display name (privileged). `name` null or empty restores
+        the default ("Codex #1"). Only the display name changes; ids and history do not.
+      type: object
+      additionalProperties: false
+      required: [type, id, name]
+      properties:
+        type:
+          const: renameAgent
+        id:
+          type: integer
+        name:
+          type: [string, 'null']
 
     # ── Supporting schemas ─────────────────────────────────────────
 

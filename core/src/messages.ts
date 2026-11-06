@@ -84,7 +84,8 @@ export type ClientMessage =
   | RequestDirectorySuggestions
   | RequestDiagnostics
   | RequestHistorySessions
-  | RequestSessionHistory;
+  | RequestSessionHistory
+  | RenameAgent;
 
 export interface ProviderCapabilities {
   type: 'providerCapabilities';
@@ -240,11 +241,23 @@ export interface AgentObservation {
   agentName: string | null;
   isTeamLead: boolean;
   leadAgentId: number | null;
+  sessionOrdinal: number | null;
+  customName: string | null;
+  task: string | null;
+  statusDetail: string | null;
 }
 
 export type ObservedChannel = 'hooks' | 'transcript';
 
-export type ObservedStatus = 'unknown' | 'working' | 'waiting_permission' | 'waiting_user' | 'idle';
+export type ObservedStatus =
+  | 'unknown'
+  | 'working'
+  | 'waiting_permission'
+  | 'waiting_user'
+  | 'idle'
+  | 'completed'
+  | 'error'
+  | 'disconnected';
 
 export type ObservedActivity =
   | 'reading'
@@ -278,7 +291,9 @@ export type ActivityKind =
   | 'turnEnd'
   | 'waitingInput'
   | 'subagentStart'
-  | 'subagentEnd';
+  | 'subagentEnd'
+  | 'error'
+  | 'disconnected';
 
 export interface AgentObservationUpdated {
   type: 'agentObservation';
@@ -308,6 +323,8 @@ export interface HistorySession {
   lastTs: number;
   events: number;
   live: boolean;
+  sessionOrdinal: number | null;
+  customName: string | null;
 }
 
 export interface SessionHistory {
@@ -654,4 +671,10 @@ export interface RequestHistorySessions {
 export interface RequestSessionHistory {
   type: 'requestSessionHistory';
   sessionId: string;
+}
+
+export interface RenameAgent {
+  type: 'renameAgent';
+  id: number;
+  name: string | null;
 }

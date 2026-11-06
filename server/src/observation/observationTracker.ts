@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import type { ActivityEntry, ActivityKind, AgentObservation } from '../../../core/src/messages.js';
 import type { AgentStateStore } from '../agentStateStore.js';
 import type { AgentState } from '../types.js';
+import type { AgentIdentityStore } from './agentIdentity.js';
 import { classifyTool } from './classify.js';
 import { maskSecrets } from './maskSecrets.js';
 import { readTranscriptMeta, type TranscriptMeta } from './transcriptMeta.js';
@@ -23,6 +24,30 @@ export interface ObservationOptions {
   readMeta?: (file: string | undefined) => TranscriptMeta;
   /** Called for every feed entry with the agent it belongs to (history journal). */
   onRecord?: (entry: ActivityEntry, agent: AgentObservation | undefined) => void;
+  /** Session ordinals and user-given names. */
+  identity?: AgentIdentityStore;
+  /** "Completed" turns into "Idle" after this long without a new turn. */
+  completedHoldMs?: number;
+  /** A "working" agent with no events this long is shown as disconnected. */
+  staleMs?: number;
+  /** Interval of the status sweep (0 disables the timer; call sweep() manually). */
+  sweepMs?: number;
+}
+
+export const COMPLETED_HOLD_MS = 3 * 60 * 1000;
+export const STALE_WORKING_MS = 30 * 60 * 1000;
+const TASK_MAX = 100;
+
+/** First meaningful line of a user request, masked and clipped. */
+export function summarizeTask(text: string | null | undefined): string | null {
+  if (!text) return null;
+  const line = text
+    .split('\n')
+    .map((l) => l.trim())
+    .find((l) => l && !l.startsWith('<') && !l.startsWith('#'));
+  if (!line) return null;
+  const masked = maskSecrets(line.replace(/\s+/g, ' '));
+  return masked.length > TASK_MAX ? masked.slice(0, TASK_MAX) + '…' : masked;
 }
 
 const OWN_MESSAGE_TYPES = new Set([
@@ -37,6 +62,8 @@ interface Internal {
   tools: Map<string, { name: string; status: string }>;
   subagents: Map<string, string>;
   permission: boolean;
+  /** When the current status began (completed → idle decay). */
+  statusSince: number;
 }
 
 /**
@@ -57,6 +84,10 @@ export class ObservationTracker {
   private readonly readMeta: (file: string | undefined) => TranscriptMeta;
   private readonly listeners: Array<() => void> = [];
   private readonly onRecord?: ObservationOptions['onRecord'];
+  private readonly identity?: AgentIdentityStore;
+  private readonly completedHoldMs: number;
+  private readonly staleMs: number;
+  private sweepTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor(
     private readonly store: AgentStateStore,
@@ -67,6 +98,14 @@ export class ObservationTracker {
     this.feedLimit = opts.feedLimit ?? 300;
     this.readMeta = opts.readMeta ?? readTranscriptMeta;
     this.onRecord = opts.onRecord;
+    this.identity = opts.identity;
+    this.completedHoldMs = opts.completedHoldMs ?? COMPLETED_HOLD_MS;
+    this.staleMs = opts.staleMs ?? STALE_WORKING_MS;
+    const sweepMs = opts.sweepMs ?? 30_000;
+    if (sweepMs > 0) {
+      this.sweepTimer = setInterval(() => this.sweep(), sweepMs);
+      this.sweepTimer.unref?.();
+    }
 
     const onAdded = (id: number, agent: AgentState) => this.onAgentAdded(id, agent);
     const onRemoved = (id: number) => this.onAgentRemoved(id);
@@ -85,6 +124,72 @@ export class ObservationTracker {
   dispose(): void {
     for (const off of this.listeners) off();
     if (this.flushTimer) clearTimeout(this.flushTimer);
+    if (this.sweepTimer) clearInterval(this.sweepTimer);
+  }
+
+  /**
+   * Time-based status rules, from real timestamps only: a finished turn reads
+   * "Completed" for a while, then "Idle"; a "Working" agent that has gone
+   * silent for a long time is shown as disconnected rather than still working.
+   */
+  sweep(): void {
+    const now = this.now();
+    for (const a of this.agents.values()) {
+      const o = a.obs;
+      if (o.status === 'completed' && now - a.statusSince >= this.completedHoldMs) {
+        this.setStatus(a, 'idle');
+        this.markDirty(o.id);
+      } else if (
+        (o.status === 'working' || o.status === 'waiting_permission') &&
+        o.lastEventAt !== null &&
+        now - o.lastEventAt >= this.staleMs
+      ) {
+        this.setStatus(a, 'disconnected', 'No events for a long time');
+        this.record(o.id, 'disconnected', 'No events for a long time');
+        this.markDirty(o.id);
+      }
+    }
+  }
+
+  /** A source reported an error for this agent (e.g. a failed Codex turn). */
+  reportError(id: number, detail: string | null): void {
+    const a = this.agents.get(id);
+    if (!a) return;
+    const clean = detail ? summarizeTask(detail) : null;
+    this.setStatus(a, 'error', clean);
+    a.obs.lastEventAt = this.now();
+    this.record(id, 'error', clean ? `Error: ${clean}` : 'Error');
+    this.markDirty(id);
+  }
+
+  /** A source lost contact with this agent's session. */
+  reportDisconnected(id: number, detail: string | null): void {
+    const a = this.agents.get(id);
+    if (!a || a.obs.status === 'disconnected') return;
+    this.setStatus(a, 'disconnected', detail);
+    this.record(id, 'disconnected', detail ?? 'Disconnected');
+    this.markDirty(id);
+  }
+
+  /** Give an agent a display name (null restores the default). Returns false if unknown. */
+  rename(id: number, name: unknown): boolean {
+    const a = this.agents.get(id);
+    if (!a || !this.identity) return false;
+    const ident = this.identity.rename(a.obs.source, a.obs.sessionId, name);
+    a.obs.customName = ident.customName;
+    a.obs.sessionOrdinal = ident.ordinal;
+    this.markDirty(id);
+    return true;
+  }
+
+  private setStatus(
+    a: Internal,
+    status: AgentObservation['status'],
+    detail: string | null = null,
+  ): void {
+    if (a.obs.status !== status) a.statusSince = this.now();
+    a.obs.status = status;
+    a.obs.statusDetail = detail;
   }
 
   /** Full state for a (re)connecting client. */
@@ -125,13 +230,15 @@ export class ObservationTracker {
     if (this.agents.has(id)) return;
     const meta = this.readMeta(agent.jsonlFile || undefined);
     const now = this.now();
+    const source =
+      agent.providerId === undefined || agent.providerId === 'claude'
+        ? 'claude-code'
+        : agent.providerId;
+    const ident = this.identity?.get(source, agent.sessionId) ?? null;
     this.agents.set(id, {
       obs: {
         id,
-        source:
-          agent.providerId === undefined || agent.providerId === 'claude'
-            ? 'claude-code'
-            : agent.providerId,
+        source,
         sessionId: agent.sessionId,
         isExternal: agent.isExternal,
         channel: 'transcript',
@@ -152,10 +259,15 @@ export class ObservationTracker {
         agentName: agent.agentName ?? null,
         isTeamLead: agent.isTeamLead ?? false,
         leadAgentId: agent.leadAgentId ?? null,
+        sessionOrdinal: ident?.ordinal ?? null,
+        customName: ident?.customName ?? null,
+        task: summarizeTask(meta.task),
+        statusDetail: null,
       },
       tools: new Map(),
       subagents: new Map(),
       permission: false,
+      statusSince: now,
     });
     if (!opts.silent) this.record(id, 'joined', 'Detected session');
     this.markDirty(id);
@@ -188,17 +300,16 @@ export class ObservationTracker {
         const status = maskSecrets(typeof msg.status === 'string' ? msg.status : name);
         const isNew = !a.tools.has(toolId);
         a.tools.set(toolId, { name, status });
-        o.status =
+        if (msg.permissionActive === true) a.permission = true;
+        this.setStatus(
+          a,
           name === 'AskUserQuestion'
             ? 'waiting_user'
             : a.permission
               ? 'waiting_permission'
-              : 'working';
+              : 'working',
+        );
         o.lastEventAt = now;
-        if (msg.permissionActive === true) {
-          a.permission = true;
-          o.status = 'waiting_permission';
-        }
         if (isNew && status) {
           o.lastAction = status;
           this.record(id, 'tool', status);
@@ -218,23 +329,25 @@ export class ObservationTracker {
       case 'agentToolPermission':
       case 'subagentToolPermission':
         a.permission = true;
-        o.status = 'waiting_permission';
+        this.setStatus(a, 'waiting_permission');
         o.lastEventAt = now;
         this.record(id, 'permission', 'Needs your permission');
         break;
       case 'agentToolPermissionClear':
         a.permission = false;
-        if (o.status === 'waiting_permission') o.status = 'working';
+        if (o.status === 'waiting_permission') this.setStatus(a, 'working');
         o.lastEventAt = now;
         break;
       case 'agentStatus': {
         if (msg.status === 'active') {
-          if (!a.permission) o.status = 'working';
+          if (!a.permission) this.setStatus(a, 'working');
+          this.refreshMeta(id); // a new turn: pick up the request that started it
         } else if (msg.status === 'waiting') {
           a.permission = false;
           a.tools.clear();
           const awaiting = msg.awaitingInput === true;
-          o.status = awaiting ? 'waiting_user' : 'idle';
+          // An error reported for this turn stays visible until the next turn.
+          if (o.status !== 'error') this.setStatus(a, awaiting ? 'waiting_user' : 'completed');
           this.record(
             id,
             awaiting ? 'waitingInput' : 'turnEnd',
@@ -299,6 +412,8 @@ export class ObservationTracker {
     }
     if (meta.gitBranch) a.obs.gitBranch = meta.gitBranch;
     if (meta.model) a.obs.model = meta.model;
+    const task = summarizeTask(meta.task);
+    if (task) a.obs.task = task;
   }
 
   private materialize(a: Internal): AgentObservation {
@@ -346,6 +461,11 @@ export class ObservationTracker {
 //    without threading a new field through every upstream context type. ──
 
 const trackers = new WeakMap<AgentStateStore, ObservationTracker>();
+
+/** The tracker attached to a store, if any (sources report errors through it). */
+export function getObservationTracker(store: AgentStateStore): ObservationTracker | undefined {
+  return trackers.get(store);
+}
 
 export function attachObservationTracker(
   store: AgentStateStore,

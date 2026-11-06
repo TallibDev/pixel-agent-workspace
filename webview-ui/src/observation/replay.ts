@@ -13,7 +13,9 @@ const STATUS_AFTER: Partial<Record<ActivityKind, ObservedStatus>> = {
   subagentEnd: 'working',
   permission: 'waiting_permission',
   waitingInput: 'waiting_user',
-  turnEnd: 'idle',
+  turnEnd: 'completed',
+  error: 'error',
+  disconnected: 'disconnected',
 };
 
 /** Status per agent id after applying entries[0..index]. 'left' removes the agent. */
