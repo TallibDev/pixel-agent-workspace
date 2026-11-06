@@ -67,6 +67,8 @@ export class OfficeState {
   furniture: FurnitureInstance[];
   walkableTiles: Array<{ col: number; row: number }>;
   characters: Map<number, Character> = new Map();
+  /** Pixel Agent Workspace: predicate for characters the agent filter hides (not drawn, not hittable). */
+  isCharacterHidden: ((ch: Character) => boolean) | null = null;
   /** Furniture as rendered this frame (on-state types), for the night lighting pass. */
   lightFurniture: PlacedFurniture[] = [];
   /** Pixel Agent Workspace: free-time behaviour for idle characters (no AI). */
@@ -1303,6 +1305,8 @@ export class OfficeState {
     for (const ch of chars) {
       // Skip characters that are despawning
       if (ch.matrixEffect === 'despawn') continue;
+      // Pixel Agent Workspace: characters hidden by the agent filter can't be hit.
+      if (this.isCharacterHidden?.(ch)) continue;
       // Character sprite is 16x24, anchored bottom-center
       // Apply sitting offset to match visual position
       const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;

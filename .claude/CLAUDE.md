@@ -50,7 +50,11 @@ node dist/cli.js --port 3100 --no-terminal   # standalone, observe only
 ## Testing rules
 
 - Server tests must never touch the real home: `server/__tests__/setup/isolateHome.ts` sandboxes `HOME`/`USERPROFILE`. Any new test that needs a home directory uses a temp dir.
-- Known Windows-only baseline failures (6, upstream test assumptions): `cli.test.ts` hook path escaping, `server.test.ts` file mode `0600`, `mockClaudeRunner.test.ts` timeouts. Don't mask them; fix or track them.
+- Known Windows-only baseline failures (6, upstream test assumptions — reproduced on pristine upstream v1.5.0 `b1bafd0` with only our home sandbox added, 2026-11-06):
+  - `cli.test.ts` › installs the bundled hook script: asserts the raw path inside `JSON.stringify(settings)`, where Windows backslashes are escaped (`\`).
+  - `server.test.ts` › rotateToken: asserts file mode `0600`; NTFS reports `0666`.
+  - `mockClaudeRunner.test.ts` (4): hooks are spawned with `shell: true` (cmd.exe on Windows) but written for `sh`, so they time out.
+    Don't mask them; fix upstream-style or track them.
 - Adapters get fixture-based tests from sanitized real transcripts and a documented limitations list.
 
 ## Git

@@ -212,23 +212,3 @@ describe('rename over the wire and Codex errors', () => {
     });
   });
 });
-
-describe('readTranscriptMeta task lookup', () => {
-  it('finds the latest request even when a long turn pushed it past the tail', async () => {
-    const { readTranscriptMeta } = await import('../src/observation/transcriptMeta.js');
-    const file = path.join(dir, 'long.jsonl');
-    const filler =
-      JSON.stringify({ type: 'assistant', message: { content: 'x'.repeat(2000) } }) + '\n';
-    fs.writeFileSync(
-      file,
-      JSON.stringify({ type: 'last-prompt', lastPrompt: 'old request' }) +
-        '\n' +
-        filler.repeat(50) +
-        JSON.stringify({ type: 'last-prompt', lastPrompt: 'Build the Telegram bot' }) +
-        '\n' +
-        filler.repeat(400),
-    );
-    expect(fs.statSync(file).size).toBeGreaterThan(300 * 1024);
-    expect(readTranscriptMeta(file).task).toBe('Build the Telegram bot');
-  });
-});

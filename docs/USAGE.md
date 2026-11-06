@@ -52,3 +52,10 @@ To check it yourself:
 4. Run two Codex tasks in different projects at once: two characters, two different session numbers.
 5. Stop the Pixel Agent Workspace server and start it again: the characters come back under the same `Codex #N` names.
 6. Open **History**: the sessions are listed with their names and can be replayed.
+
+## Known limitations
+
+- **Claude session not re-adopted after a server restart (rare, Windows, hooks on).** Upstream decides whether a session that existed at startup became active again by its file modification time; NTFS updates that lazily for files kept open, so once in a while a running session is not picked up until its next `SessionStart` or another restart. Observed once in five restarts; upstream code, not changed here.
+- **Project** is the folder the session started in (its first record), not the folder the agent last `cd`-ed into.
+- **Current task** is the first line of your latest request. A request older than the last 32 MB of a session that was already running when the server started is reported as Unknown until your next request.
+- Observation never calls an AI model and never writes under `~/.claude` (except the hooks you install through the wizard) or `~/.codex`; it costs no tokens.

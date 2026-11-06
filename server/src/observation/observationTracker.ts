@@ -6,7 +6,7 @@ import type { AgentState } from '../types.js';
 import type { AgentIdentityStore } from './agentIdentity.js';
 import { classifyTool } from './classify.js';
 import { maskSecrets } from './maskSecrets.js';
-import { readTranscriptMeta, type TranscriptMeta } from './transcriptMeta.js';
+import { readTranscriptMeta, TaskTracker, type TranscriptMeta } from './transcriptMeta.js';
 
 export type {
   ActivityEntry,
@@ -32,6 +32,8 @@ export interface ObservationOptions {
   staleMs?: number;
   /** Interval of the status sweep (0 disables the timer; call sweep() manually). */
   sweepMs?: number;
+  /** Latest user request for a transcript (default: incremental TaskTracker). */
+  readTask?: (file: string | undefined) => string | null;
 }
 
 export const COMPLETED_HOLD_MS = 3 * 60 * 1000;
@@ -88,6 +90,7 @@ export class ObservationTracker {
   private readonly completedHoldMs: number;
   private readonly staleMs: number;
   private sweepTimer: ReturnType<typeof setInterval> | undefined;
+  private readonly readTask: (file: string | undefined) => string | null;
 
   constructor(
     private readonly store: AgentStateStore,
@@ -99,6 +102,12 @@ export class ObservationTracker {
     this.readMeta = opts.readMeta ?? readTranscriptMeta;
     this.onRecord = opts.onRecord;
     this.identity = opts.identity;
+    if (opts.readTask) {
+      this.readTask = opts.readTask;
+    } else {
+      const tasks = new TaskTracker();
+      this.readTask = (file) => tasks.latest(file);
+    }
     this.completedHoldMs = opts.completedHoldMs ?? COMPLETED_HOLD_MS;
     this.staleMs = opts.staleMs ?? STALE_WORKING_MS;
     const sweepMs = opts.sweepMs ?? 30_000;
@@ -261,7 +270,7 @@ export class ObservationTracker {
         leadAgentId: agent.leadAgentId ?? null,
         sessionOrdinal: ident?.ordinal ?? null,
         customName: ident?.customName ?? null,
-        task: summarizeTask(meta.task),
+        task: summarizeTask(this.readTask(agent.jsonlFile || undefined) ?? meta.task),
         statusDetail: null,
       },
       tools: new Map(),
@@ -412,7 +421,7 @@ export class ObservationTracker {
     }
     if (meta.gitBranch) a.obs.gitBranch = meta.gitBranch;
     if (meta.model) a.obs.model = meta.model;
-    const task = summarizeTask(meta.task);
+    const task = summarizeTask(this.readTask(agent.jsonlFile) ?? meta.task);
     if (task) a.obs.task = task;
   }
 

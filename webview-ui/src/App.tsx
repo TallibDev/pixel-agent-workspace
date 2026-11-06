@@ -12,7 +12,6 @@ import { TerminalDrawer } from './components/TerminalDrawer.js';
 import { Tooltip } from './components/Tooltip.js';
 import { Button } from './components/ui/Button.js';
 import { Modal } from './components/ui/Modal.js';
-import { VersionIndicator } from './components/VersionIndicator.js';
 import { ZoomControls } from './components/ZoomControls.js';
 import { OFFICE_CANVAS_TEST_ID } from './constants.js';
 import { useDirectoryEditor } from './hooks/useDirectoryEditor.js';
@@ -100,7 +99,6 @@ function App() {
     directorySuggestions,
     agentDirectoryNames,
     externalAssetDirectories,
-    extensionVersion,
     watchAllSessions,
     setWatchAllSessions,
     alwaysShowLabels,
@@ -677,9 +675,6 @@ function App() {
           </Button>
         </div>
       )}
-
-      {/* Pixel Agent Workspace: the version is a plain label (no What's New). */}
-      <VersionIndicator currentVersion={extensionVersion} />
 
       {intro && (
         <IntroBubble

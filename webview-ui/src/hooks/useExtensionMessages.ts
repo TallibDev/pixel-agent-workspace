@@ -114,7 +114,6 @@ interface ExtensionMessageState {
   /** Distinct directoryNames seen across agents this session — source for the Areas Directory dropdown. */
   agentDirectoryNames: string[];
   externalAssetDirectories: string[];
-  extensionVersion: string;
   watchAllSessions: boolean;
   setWatchAllSessions: (v: boolean) => void;
   alwaysShowLabels: boolean;
@@ -199,7 +198,6 @@ export function useExtensionMessages(
   const [directorySuggestions, setDirectorySuggestions] = useState<string[]>([]);
   const [agentDirectoryNames, setAgentDirectoryNames] = useState<string[]>([]);
   const [externalAssetDirectories, setExternalAssetDirectories] = useState<string[]>([]);
-  const [extensionVersion, setExtensionVersion] = useState('');
   const [watchAllSessions, setWatchAllSessions] = useState(false);
   const [alwaysShowLabels, setAlwaysShowLabels] = useState(false);
   const [ghostHeadlessAgents, setGhostHeadlessAgentsState] = useState(false);
@@ -769,9 +767,6 @@ export function useExtensionMessages(
         if (Array.isArray(msg.externalAssetDirectories)) {
           setExternalAssetDirectories(msg.externalAssetDirectories as string[]);
         }
-        if (typeof msg.extensionVersion === 'string') {
-          setExtensionVersion(msg.extensionVersion as string);
-        }
       } else if (msg.type === 'bypassPermissionsUpdated') {
         // Another office (or this one) changed the host's posture: every launch
         // uses it, so the Settings toggle must show it.
@@ -880,7 +875,6 @@ export function useExtensionMessages(
     directorySuggestions,
     agentDirectoryNames,
     externalAssetDirectories,
-    extensionVersion,
     watchAllSessions,
     setWatchAllSessions,
     alwaysShowLabels,

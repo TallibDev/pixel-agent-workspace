@@ -145,6 +145,9 @@ export function OfficeCanvas({
       observer.observe(containerRef.current);
     }
 
+    // Characters hidden by the agent filter are neither drawn nor hittable.
+    officeState.isCharacterHidden = isCharacterHidden;
+
     const stop = startGameLoop(canvas, {
       update: (dt) => {
         advanceWorldTime(dt);

@@ -20,6 +20,7 @@ import {
   useT,
 } from '../i18n/index.js';
 import { transport } from '../transport/index.js';
+import { matchesFilter, useFilter } from '../workspace/filterStore.js';
 import { setPanel, togglePanel, usePanel } from '../workspace/uiStore.js';
 import { entryText } from './entryText.js';
 import {
@@ -73,7 +74,10 @@ export function ObservationHud({
   const panel = usePanel();
   const history = useHistory(panel === 'history', readOnly);
   const counts = useMemo(() => countStatuses(agents.values(), connected), [agents, connected]);
-  const selected = selectedAgentId !== null ? agents.get(selectedAgentId) : undefined;
+  const filter = useFilter();
+  const candidate = selectedAgentId !== null ? agents.get(selectedAgentId) : undefined;
+  // A card never shows for an agent the filter hides.
+  const selected = candidate && matchesFilter(candidate, filter) ? candidate : undefined;
   const hooksOn =
     hooks.installed === true || [...agents.values()].some((a) => a.channel === 'hooks');
   const replaying = history.recording !== null;
