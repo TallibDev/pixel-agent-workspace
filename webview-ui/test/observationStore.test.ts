@@ -4,8 +4,11 @@ import type { AgentObservation } from '../../core/src/messages.js';
 import {
   agentLabel,
   countStatuses,
+  displayStatus,
   FEED_LIMIT,
   ObservationStore,
+  providerName,
+  sessionLabel,
 } from '../src/observation/observationStore.js';
 
 function obs(id: number, over: Partial<AgentObservation> = {}): AgentObservation {
@@ -32,6 +35,10 @@ function obs(id: number, over: Partial<AgentObservation> = {}): AgentObservation
     agentName: null,
     isTeamLead: false,
     leadAgentId: null,
+    sessionOrdinal: null,
+    customName: null,
+    task: null,
+    statusDetail: null,
     ...over,
   };
 }
@@ -87,22 +94,50 @@ describe('ObservationStore', () => {
 });
 
 describe('countStatuses', () => {
-  it('groups both waiting kinds together', () => {
+  it('groups waiting kinds, completed with idle, and problems apart', () => {
     const c = countStatuses([
       obs(1, { status: 'working' }),
       obs(2, { status: 'waiting_permission' }),
       obs(3, { status: 'waiting_user' }),
       obs(4, { status: 'idle' }),
-      obs(5),
+      obs(5, { status: 'completed' }),
+      obs(6, { status: 'error' }),
+      obs(7, { status: 'disconnected' }),
+      obs(8),
     ]);
-    expect(c).toEqual({ detected: 5, working: 1, waiting: 2, idle: 1, unknown: 1 });
+    expect(c).toEqual({ detected: 8, working: 1, waiting: 2, idle: 2, problem: 2, unknown: 1 });
+  });
+
+  it('treats every agent as disconnected while the server link is down', () => {
+    const c = countStatuses([obs(1, { status: 'working' }), obs(2, { status: 'idle' })], false);
+    expect(c).toMatchObject({ working: 0, idle: 0, problem: 2 });
+    expect(displayStatus(obs(1, { status: 'working' }), false)).toBe('disconnected');
+    expect(displayStatus(obs(1, { status: 'working' }), true)).toBe('working');
+  });
+
+  it('tracks the connection flag', () => {
+    const s = new ObservationStore();
+    expect(s.getState().connected).toBe(true);
+    s.setConnected(false);
+    expect(s.getState().connected).toBe(false);
   });
 });
 
-describe('agentLabel', () => {
-  it('uses only reported names, falling back to the id', () => {
-    expect(agentLabel(obs(3, { agentName: 'researcher', project: 'app' }))).toBe('researcher');
-    expect(agentLabel(obs(3, { project: 'app' }))).toBe('app');
-    expect(agentLabel(obs(3))).toBe('Agent #3');
+describe('agentLabel / sessionLabel', () => {
+  it('never uses the project as the agent name', () => {
+    expect(agentLabel(obs(3, { project: 'NEXORQ Bot', source: 'codex', sessionOrdinal: 2 }))).toBe(
+      'Codex #2',
+    );
+    expect(agentLabel(obs(3, { project: 'app' }))).toBe('Agent #3');
+  });
+
+  it('prefers the user name, then a reported role, then the session label', () => {
+    const base = { source: 'claude-code', sessionOrdinal: 1 };
+    expect(agentLabel(obs(1, { ...base, customName: 'Builder', agentName: 'r' }))).toBe('Builder');
+    expect(agentLabel(obs(1, { ...base, agentName: 'researcher' }))).toBe('researcher');
+    expect(agentLabel(obs(1, base))).toBe('Claude #1');
+    expect(sessionLabel(obs(1, { source: 'codex', sessionOrdinal: null }))).toBeNull();
+    expect(providerName('codex')).toBe('Codex');
+    expect(providerName('claude-code')).toBe('Claude Code');
   });
 });

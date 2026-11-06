@@ -18,6 +18,12 @@ export function entryText(
       return t('feed.turnEnd');
     case 'waitingInput':
       return t('feed.waitingInput');
+    case 'error':
+      return e.text.startsWith('Error: ')
+        ? `${t('feed.error')}: ${e.text.slice('Error: '.length)}`
+        : t('feed.error');
+    case 'disconnected':
+      return t('feed.disconnected');
     case 'subagentStart':
       return t('feed.subagentStart', {
         label: translateAction(lang, e.text.replace(/^Delegated:\s*/, '')),

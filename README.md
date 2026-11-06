@@ -2,7 +2,9 @@
 
 A cozy pixel-art workspace for observing and interacting with AI coding agents in real time. Track agent activity, tasks, and collaboration across supported AI environments.
 
-> Built on [Pixel Agents](https://github.com/pixel-agents-hq/pixel-agents) (MIT). The documentation below is upstream's and describes the base it builds on; see [docs/PLAN.md](docs/PLAN.md) for this project's plan and [NOTICE.md](NOTICE.md) for authorship.
+> Built on [Pixel Agents](https://github.com/pixel-agents-hq/pixel-agents) (MIT). The documentation below is upstream's and describes the base it builds on.
+>
+> How to run it, connect Claude Code and Codex, and read the office: [docs/USAGE.md](docs/USAGE.md) · Codex: [docs/CODEX.md](docs/CODEX.md) · Plan: [docs/PLAN.md](docs/PLAN.md) · Authorship: [NOTICE.md](NOTICE.md).
 
 ---
 

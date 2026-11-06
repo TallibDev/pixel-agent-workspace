@@ -34,6 +34,13 @@ const BY_TOOL: Record<string, ObservedActivity> = {
   EnterPlanMode: 'planning',
   ExitPlanMode: 'planning',
   AskUserQuestion: 'asking',
+  // Codex
+  exec: 'running',
+  apply_patch: 'writing',
+  spawn_agent: 'delegating',
+  send_message: 'delegating',
+  request_user_input_async: 'asking',
+  request_user_input: 'asking',
 };
 
 export function classifyTool(toolName: string | undefined): ObservedActivity {

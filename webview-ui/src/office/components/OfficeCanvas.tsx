@@ -11,6 +11,7 @@ import {
 } from '../../constants.js';
 import { unlockAudio } from '../../notificationSound.js';
 import { transport } from '../../transport/index.js';
+import { isCharacterHidden } from '../../workspace/visibility.js';
 import { furnitureAt } from '../editor/editorActions.js';
 import { buildEditorRenderState } from '../editor/editorRenderState.js';
 import type { EditorState } from '../editor/editorState.js';
@@ -144,6 +145,9 @@ export function OfficeCanvas({
       observer.observe(containerRef.current);
     }
 
+    // Characters hidden by the agent filter are neither drawn nor hittable.
+    officeState.isCharacterHidden = isCharacterHidden;
+
     const stop = startGameLoop(canvas, {
       update: (dt) => {
         advanceWorldTime(dt);
@@ -204,7 +208,7 @@ export function OfficeCanvas({
           h,
           officeState.tileMap,
           officeState.furniture,
-          officeState.getCharacters(),
+          officeState.getCharacters().filter((c) => !isCharacterHidden(c)),
           zoom,
           panRef.current.x,
           panRef.current.y,
@@ -233,7 +237,7 @@ export function OfficeCanvas({
             zoom,
             collectLights(
               officeState.lightFurniture.length > 0 ? officeState.lightFurniture : layout.furniture,
-              officeState.getCharacters(),
+              officeState.getCharacters().filter((c) => !isCharacterHidden(c)),
             ),
             getWorldNightness(),
             performance.now() / 1000,

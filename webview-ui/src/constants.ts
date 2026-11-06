@@ -192,10 +192,6 @@ export const PERMISSION_VOLUME = 0.12;
 // ── Furniture Animation ─────────────────────────────────────
 export const FURNITURE_ANIM_INTERVAL_SEC = 0.2;
 
-// ── Version Notice ──────────────────────────────────────────
-export const WHATS_NEW_AUTO_CLOSE_MS = 20000;
-export const WHATS_NEW_FADE_MS = 1000;
-
 // ── Game Logic ───────────────────────────────────────────────
 export const MAX_DELTA_TIME_SEC = 0.1;
 export const WAITING_BUBBLE_DURATION_SEC = 2.0;

@@ -7,6 +7,7 @@ import { translateAction, useLanguage, useT } from '../i18n/index.js';
 import { entryText } from '../observation/entryText.js';
 import { agentLabel, countStatuses } from '../observation/observationStore.js';
 import { useObservation } from '../observation/useObservation.js';
+import { isFilterActive, matchesFilter, useFilter } from './filterStore.js';
 import { Icon, type IconName } from './icons.js';
 import { setPanel } from './uiStore.js';
 
@@ -19,6 +20,8 @@ const KIND_ICON: Record<ActivityKind, IconName> = {
   waitingInput: 'hourglass',
   subagentStart: 'plus',
   subagentEnd: 'check',
+  error: 'alert',
+  disconnected: 'minus',
 };
 
 interface Props {
@@ -29,11 +32,22 @@ interface Props {
 export function RightPanels({ onFocusAgent }: Props) {
   const t = useT();
   const lang = useLanguage();
-  const { agents, feed, synced } = useObservation();
-  const counts = useMemo(() => countStatuses(agents.values()), [agents]);
+  const { agents, feed, synced, connected } = useObservation();
+  const filter = useFilter();
+  const visible = useMemo(
+    () => [...agents.values()].filter((a) => matchesFilter(a, filter)),
+    [agents, filter],
+  );
+  const counts = useMemo(() => countStatuses(visible, connected), [visible, connected]);
   const fallback = (id: number) => t('card.agentFallback', { id });
-  const working = [...agents.values()].filter((a) => a.status === 'working');
-  const recent = feed.slice(-6).reverse();
+  const working = connected ? visible.filter((a) => a.status === 'working') : [];
+  const recent = feed
+    .filter((e) => {
+      const a = agents.get(e.agentId);
+      return !isFilterActive(filter) || (a !== undefined && matchesFilter(a, filter));
+    })
+    .slice(-6)
+    .reverse();
   const n = (v: number) => (synced ? String(v) : '–');
 
   return (
@@ -69,6 +83,15 @@ export function RightPanels({ onFocusAgent }: Props) {
             {t('panel.idle')}
             <b>{n(counts.idle)}</b>
           </li>
+          {counts.problem > 0 && (
+            <li>
+              <span className="paw-ic" style={{ color: 'var(--paw-error)' }}>
+                <Icon name="alert" size={16} />
+              </span>
+              {t('panel.problems')}
+              <b>{n(counts.problem)}</b>
+            </li>
+          )}
           {counts.unknown > 0 && (
             <li>
               <span className="paw-ic">
@@ -90,7 +113,7 @@ export function RightPanels({ onFocusAgent }: Props) {
         ) : (
           <ul className="paw-tasks">
             {working.map((a) => {
-              const action = a.currentAction ?? a.lastAction;
+              const action = a.task ?? a.currentAction ?? a.lastAction;
               return (
                 <li key={a.id}>
                   <button type="button" onClick={() => onFocusAgent(a.id)}>
@@ -100,7 +123,11 @@ export function RightPanels({ onFocusAgent }: Props) {
                     <span className="paw-task-text">
                       <b>{agentLabel(a, fallback)}</b>
                       {' – '}
-                      {action ? translateAction(lang, action) : t('panel.taskUnknown')}
+                      {action
+                        ? a.task
+                          ? action
+                          : translateAction(lang, action)
+                        : t('panel.taskUnknown')}
                     </span>
                     {/* No percentages: agents don't report progress. This bar only says "in progress". */}
                     <span

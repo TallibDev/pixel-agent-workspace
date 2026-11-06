@@ -11,6 +11,9 @@
   --obs-waiting-user: #ff8adf;
   --obs-idle: #7be3a4;
   --obs-unknown: #8f88a8;
+  --obs-idle-soft: #9d93b8;
+  --obs-error: #ff5a6a;
+  --obs-off: #6f6690;
   --obs-radius: 8px;
   --obs-font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
@@ -524,4 +527,68 @@
     width: auto;
     max-width: none;
   }
+}
+
+/* ── Rename, offline note ── */
+.obs-card-title h2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.obs-edit {
+  flex: none;
+  border: 0;
+  border-radius: 4px;
+  padding: 0 4px;
+  background: transparent;
+  color: var(--obs-muted);
+  font-size: 14px;
+  cursor: pointer;
+}
+.obs-edit:hover:not(:disabled) {
+  color: var(--obs-text);
+  background: rgba(186, 160, 255, 0.12);
+}
+.obs-edit:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.obs-rename {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.obs-rename input {
+  flex: 1 1 140px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--obs-line);
+  border-radius: 6px;
+  background: rgba(10, 7, 22, 0.6);
+  color: var(--obs-text);
+  font: inherit;
+  font-size: 14px;
+}
+.obs-rename input:focus-visible {
+  outline: 2px solid var(--obs-working);
+  outline-offset: 1px;
+}
+.obs-rename small {
+  flex-basis: 100%;
+  color: var(--obs-faint);
+  font-size: 11px;
+}
+.obs-offline {
+  margin: 0 0 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(255, 90, 106, 0.12);
+  color: #ffb3bb;
+  font-size: 12px;
+}
+.obs-card .obs-fields + .obs-now,
+.obs-card .obs-now + .obs-fields {
+  margin-top: 10px;
 }

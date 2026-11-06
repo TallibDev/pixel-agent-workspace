@@ -103,7 +103,14 @@ export class HistoryJournal {
   }
 
   /** Sessions seen in the retained history, newest activity first. */
-  listSessions(liveSessionIds: ReadonlySet<string>, limit = 100): HistorySession[] {
+  listSessions(
+    liveSessionIds: ReadonlySet<string>,
+    limit = 100,
+    identity?: (
+      source: string,
+      sessionId: string,
+    ) => { ordinal: number; customName: string | null } | null,
+  ): HistorySession[] {
     this.flush();
     const byId = new Map<string, HistorySession>();
     for (const row of this.readAll()) {
@@ -117,6 +124,8 @@ export class HistoryJournal {
           lastTs: row.ts,
           events: 0,
           live: liveSessionIds.has(row.sessionId),
+          sessionOrdinal: null,
+          customName: null,
         };
         byId.set(row.sessionId, s);
       }
@@ -125,7 +134,15 @@ export class HistoryJournal {
       if (row.ts > s.lastTs) s.lastTs = row.ts;
       if (row.project) s.project = row.project;
     }
-    return [...byId.values()].sort((a, b) => b.lastTs - a.lastTs).slice(0, limit);
+    const sessions = [...byId.values()].sort((a, b) => b.lastTs - a.lastTs).slice(0, limit);
+    for (const s of sessions) {
+      const ident = identity?.(s.source, s.sessionId);
+      if (ident) {
+        s.sessionOrdinal = ident.ordinal;
+        s.customName = ident.customName;
+      }
+    }
+    return sessions;
   }
 
   /** All retained events of one session, oldest first (capped). */

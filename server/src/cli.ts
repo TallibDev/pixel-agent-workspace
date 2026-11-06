@@ -33,6 +33,7 @@ import {
 } from './constants.js';
 import { FileStateAdapter } from './fileStateAdapter.js';
 import { attachObservation } from './observation/service.js';
+import { CodexObserver } from './providers/codex/codexObserver.js';
 import { claudeProvider, copyHookScript, hookProviderById } from './providers/index.js';
 import { PixelAgentsServer } from './server.js';
 import { PtySessionManager } from './terminal/ptySessionManager.js';
@@ -232,6 +233,9 @@ async function main(): Promise<void> {
   store.setAdapter(adapter);
   // Pixel Agent Workspace: honest per-agent observation model, activity feed, history.
   attachObservation(store);
+  // Pixel Agent Workspace: read-only Codex observation (~/.codex/sessions).
+  const codexObserver = new CodexObserver(store);
+  if (codexObserver.available) codexObserver.start();
 
   // ── Create server ──
   const server = new PixelAgentsServer();
