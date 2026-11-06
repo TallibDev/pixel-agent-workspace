@@ -1,4 +1,12 @@
-> **Pixel Agent Workspace** — this repository builds on Pixel Agents (below). How to run it, connect Claude Code and Codex, and read the office: [docs/USAGE.md](docs/USAGE.md) · Codex: [docs/CODEX.md](docs/CODEX.md) · Authorship: [NOTICE.md](NOTICE.md).
+# Pixel Agent Workspace
+
+A cozy pixel-art workspace for observing and interacting with AI coding agents in real time. Track agent activity, tasks, and collaboration across supported AI environments.
+
+> Built on [Pixel Agents](https://github.com/pixel-agents-hq/pixel-agents) (MIT). The documentation below is upstream's and describes the base it builds on.
+>
+> How to run it, connect Claude Code and Codex, and read the office: [docs/USAGE.md](docs/USAGE.md) · Codex: [docs/CODEX.md](docs/CODEX.md) · Plan: [docs/PLAN.md](docs/PLAN.md) · Authorship: [NOTICE.md](NOTICE.md).
+
+---
 
 <h1 align="center">
   <a href="https://github.com/pixel-agents-hq/pixel-agents/discussions">
